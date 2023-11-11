@@ -546,7 +546,6 @@ library Pool {
         }
     }
 
-    // the top level state of the swap, the results of which are recorded in storage at the end
     struct DonateState {
         // the cumulative feeGrowth (amounts divided by liquidity) added to ticks below the current tick
         // slight misnomer—it also includes any feeGrowth distributed to the current tick
@@ -564,192 +563,132 @@ library Pool {
         bool initialized;
     }
 
-    /// @notice Donates the given amount of currency0 and currency1 to the liquidity that would be in range at the specified ticks
+    // state returned by the recursive calls to donateBelow
+    struct DonateReturnState {
+        // the cumulative feeGrowth (amounts divided by liquidity) added to ticks below the current tick
+        // slight misnomer—it also includes any feeGrowth distributed to the current tick
+        uint256 cumulativeFeeGrowthOutside0x128;
+        uint256 cumulativeFeeGrowthOutside1x128;
+        // the cumulative amounts of tokens donated to any ticks
+        uint256 cumulativeAmount0;
+        uint256 cumulativeAmount1;
+    }
+
+
     function donate(
         State storage self,
         uint256[] memory amount0,
-        uint256[] memory amount1,
-        int24[] memory ticks,
+        uint256[] memory amount1, 
+        int24[] memory ticks, // must be furthest first, closest last
         int24 tickSpacing
     ) internal returns (BalanceDelta delta) {
-        DonateState memory state;
-
         if (ticks.length == 0) revert TickListMisordered();
         if (ticks.length != amount0.length || ticks.length != amount1.length) revert TickListMisordered();
-
-        // compute the liquidity that would be in range at (just right of) the leftmost tick by walking down to it
-        state.liquidityAtTick = self.liquidity;
-        state.tickCurrent = self.slot0.tick;
-
-        if (ticks[0] < TickMath.MIN_TICK) revert TickListMisordered();
-
-        (state.tickNext, state.initialized) =
-            self.tickBitmap.nextInitializedTickWithinOneWord(state.tickCurrent, tickSpacing, true);
-
-        while (state.tickNext > ticks[0]) {
-            // if the tick is initialized, update state.liquidityAtTick
-            if (state.initialized) {
-                int128 liquidityNet = self.ticks[state.tickNext].liquidityNet;
-
-                // since we're moving leftward, we interpret liquidityNet as the opposite sign
-                // safe because liquidityNet cannot be type(int128).min
-                state.liquidityAtTick = liquidityNet > 0
-                    ? state.liquidityAtTick - uint128(liquidityNet)
-                    : state.liquidityAtTick + uint128(-liquidityNet);
-            }
-
-            (state.tickNext, state.initialized) =
-                self.tickBitmap.nextInitializedTickWithinOneWord(state.tickNext - 1, tickSpacing, true);
-        }
-
-        // walk back over initialized ticks to the current tick
-        // this will distribute fees
-        // it will also distribute fees to the current tick, if that one is specified
-
-        // the index of the ticks array that we're currently on
-        uint256 i = 0;
-
-        // skip the step that updates the tick on the first run through this loop
-        state.initialized = false;
-        state.tickNext = ticks[0];
-
-        while (state.tickNext <= state.tickCurrent) {
-            if (state.initialized) {
-                TickInfo storage info = self.ticks[state.tickNext];
-
-                int128 liquidityNet = info.liquidityNet;
-
-                // update state.liquidityAtTick
-                // safe because liquidityNet cannot be type(int128).min
-                state.liquidityAtTick = liquidityNet < 0
-                    ? state.liquidityAtTick - uint128(-liquidityNet)
-                    : state.liquidityAtTick + uint128(liquidityNet);
-
-                // update the feeGrowthOutside values at the tick
-                if (state.cumulativeFeeGrowthBelow0x128 > 0) {
-                    info.feeGrowthOutside0X128 += state.cumulativeFeeGrowthBelow0x128;
-                }
-                if (state.cumulativeFeeGrowthBelow1x128 > 0) {
-                    info.feeGrowthOutside1X128 += state.cumulativeFeeGrowthBelow1x128;
-                }
-            }
-
-            // step to the next initialized tick (or the end of the word)
-            (state.tickNext, state.initialized) =
-                self.tickBitmap.nextInitializedTickWithinOneWord(state.tickNext, tickSpacing, false);
-
-            // ensure that we do not overshoot the max tick, as the tick bitmap is not aware of these bounds
-            if (state.tickNext > TickMath.MAX_TICK) {
-                state.tickNext = TickMath.MAX_TICK;
-            }
-
-            // check if we crossed any of the ticks that we are distributing fees to
-            while (i < ticks.length && ticks[i] < state.tickNext && ticks[i] <= state.tickCurrent) {
-                if (i + 1 < ticks.length && ticks[i] >= ticks[i + 1]) revert TickListMisordered();
-                if (state.liquidityAtTick == 0) revert NoLiquidityToReceiveFees();
-                state.cumulativeAmount0 += amount0[i];
-                state.cumulativeAmount1 += amount1[i];
-                state.cumulativeFeeGrowthBelow0x128 +=
-                    FullMath.mulDiv(amount0[i], FixedPoint128.Q128, state.liquidityAtTick);
-                state.cumulativeFeeGrowthBelow1x128 +=
-                    FullMath.mulDiv(amount1[i], FixedPoint128.Q128, state.liquidityAtTick);
-                i++;
-            }
-        }
-
-        // now, process the ticks above the current tick
-
-        // compute the liquidity that would be in range at (just right of) the rightmost tick by walking up to it
-        state.liquidityAtTick = self.liquidity;
-        state.tickCurrent = self.slot0.tick;
-
-        if (ticks[ticks.length - 1] > TickMath.MAX_TICK) revert TickListMisordered();
-
-        (state.tickNext, state.initialized) =
-            self.tickBitmap.nextInitializedTickWithinOneWord(state.tickCurrent, tickSpacing, false);
-
-        while (state.tickNext <= ticks[ticks.length - 1]) {
-            // if the tick is initialized, update state.liquidityAtTick
-            if (state.initialized) {
-                int128 liquidityNet = self.ticks[state.tickNext].liquidityNet;
-
-                // safe because liquidityNet cannot be type(int128).min
-                state.liquidityAtTick = liquidityNet > 0
-                    ? state.liquidityAtTick + uint128(liquidityNet)
-                    : state.liquidityAtTick - uint128(-liquidityNet);
-            }
-
-            (state.tickNext, state.initialized) =
-                self.tickBitmap.nextInitializedTickWithinOneWord(state.tickNext, tickSpacing, false);
-        }
-
-        // walk back over initialized ticks to the current tick
-        // the index of the ticks array that we're currently on
-        i = ticks.length - 1;
-
-        // tickNext is currently the tick above the highest tick in the list
-        // skip the step that updates the tick on the first run through this loop
-        state.initialized = false;
-
-        bool exhausted = false;
-        while (state.tickNext > state.tickCurrent) {
-            if (state.initialized) {
-                TickInfo storage info = self.ticks[state.tickNext];
-
-                int128 liquidityNet = info.liquidityNet;
-
-                // update state.liquidityAtTick
-                // since we're moving leftward, we interpret liquidityNet as the opposite sign
-                // safe because liquidityNet cannot be type(int128).min
-                state.liquidityAtTick = liquidityNet > 0
-                    ? state.liquidityAtTick - uint128(liquidityNet)
-                    : state.liquidityAtTick + uint128(-liquidityNet);
-
-                // update the feeGrowthOutside values at the tick
-                if (state.cumulativeFeeGrowthAbove0x128 > 0) {
-                    info.feeGrowthOutside0X128 += state.cumulativeFeeGrowthAbove0x128;
-                }
-                if (state.cumulativeFeeGrowthAbove1x128 > 0) {
-                    info.feeGrowthOutside1X128 += state.cumulativeFeeGrowthAbove1x128;
-                }
-            }
-
-            // step to the next initialized tick (or the end of the word)
-            (state.tickNext, state.initialized) =
-                self.tickBitmap.nextInitializedTickWithinOneWord(state.tickNext - 1, tickSpacing, true);
-
-            // ensure that we do not overshoot the min tick, as the tick bitmap is not aware of these bounds
-            if (state.tickNext < TickMath.MIN_TICK) {
-                state.tickNext = TickMath.MIN_TICK;
-            }
-
-            // check if we crossed any of the ticks that we are distributing fees to
-            while (!exhausted && ticks[i] >= state.tickNext && ticks[i] > state.tickCurrent) {
-                if (i >= 1 && ticks[i - 1] >= ticks[i]) revert TickListMisordered();
-                if (state.liquidityAtTick == 0) revert NoLiquidityToReceiveFees();
-                state.cumulativeAmount0 += amount0[i];
-                state.cumulativeAmount1 += amount1[i];
-                state.cumulativeFeeGrowthAbove0x128 +=
-                    FullMath.mulDiv(amount0[i], FixedPoint128.Q128, state.liquidityAtTick);
-                state.cumulativeFeeGrowthAbove1x128 +=
-                    FullMath.mulDiv(amount1[i], FixedPoint128.Q128, state.liquidityAtTick);
-
-                if (i > 0) i--;
-                else exhausted = true;
-            }
-        }
-
-        // TODO: fail if array was not contiguous
-
-        // update the global feeGrowthGlobal values
-        delta = toBalanceDelta(state.cumulativeAmount0.toInt128(), state.cumulativeAmount1.toInt128());
+        bool isBelow = ticks[0] <= self.slot0.tick;
+        (int24 nextTick, bool initialized) = isBelow ? self.tickBitmap.nextInitializedTickWithinOneWord(self.slot0.tick - 1, tickSpacing, true) : self.tickBitmap.nextInitializedTickWithinOneWord(self.slot0.tick, tickSpacing, false);
+        DonateReturnState memory returnState = donateOutsideRecursive(self, amount0, amount1, ticks, ticks.length, nextTick, initialized, self.liquidity, tickSpacing, isBelow);
         unchecked {
-            if (state.cumulativeFeeGrowthBelow0x128 > 0 || state.cumulativeFeeGrowthAbove0x128 > 0) {
-                self.feeGrowthGlobal0X128 += state.cumulativeFeeGrowthBelow0x128 + state.cumulativeFeeGrowthAbove0x128;
+            if (returnState.cumulativeFeeGrowthOutside0x128 > 0) {
+                self.feeGrowthGlobal0X128 += returnState.cumulativeFeeGrowthOutside0x128;
             }
-            if (state.cumulativeFeeGrowthBelow1x128 > 0 || state.cumulativeFeeGrowthAbove1x128 > 0) {
-                self.feeGrowthGlobal1X128 += state.cumulativeFeeGrowthBelow1x128 + state.cumulativeFeeGrowthAbove1x128;
+            if (returnState.cumulativeFeeGrowthOutside1x128 > 0) {
+                self.feeGrowthGlobal1X128 += returnState.cumulativeFeeGrowthOutside1x128;
             }
+        }
+        delta = toBalanceDelta(returnState.cumulativeAmount0.toInt128(), returnState.cumulativeAmount1.toInt128());
+    }
+
+    function donateOutsideRecursive(
+        State storage self,
+        uint256[] memory amounts0,
+        uint256[] memory amounts1, 
+        int24[] memory ticks, // must be furthest first, closest last
+        uint256 arrayLength,
+        int24 nextTick,
+        bool initialized,
+        uint256 liquidityBeforeTick,
+        int24 tickSpacing,
+        bool isBelow
+    ) internal returns (DonateReturnState memory returnState) {
+        // base case
+        if (arrayLength == 0) {
+            return DonateReturnState({
+                cumulativeFeeGrowthOutside0x128: 0,
+                cumulativeFeeGrowthOutside1x128: 0,
+                cumulativeAmount0: 0,
+                cumulativeAmount1: 0
+            });
+        }
+
+        // if there's a tick to donate to before the next initialized tick, recurse, then recognize the donation in the returned state
+        if (ticks[arrayLength - 1] >= nextTick) {
+            // check that array is ordered from furthest first to closest last
+            if (arrayLength > 1 && ((ticks[arrayLength - 1] < ticks[arrayLength - 2] == isBelow) || ticks[arrayLength - 1] == ticks[arrayLength - 2])) revert TickListMisordered();
+
+            returnState = donateOutsideRecursive(
+                self,
+                amounts0,
+                amounts1,
+                ticks,
+                arrayLength - 1,
+                nextTick,
+                initialized,
+                liquidityBeforeTick,
+                tickSpacing,
+                isBelow
+            );
+
+            returnState.cumulativeAmount0 += amounts0[arrayLength - 1];
+            returnState.cumulativeAmount1 += amounts1[arrayLength - 1];
+            if (liquidityBeforeTick == 0) {
+                revert NoLiquidityToReceiveFees();
+            }
+            returnState.cumulativeFeeGrowthOutside0x128 +=
+                FullMath.mulDiv(amounts0[arrayLength - 1], FixedPoint128.Q128, liquidityBeforeTick);
+            returnState.cumulativeFeeGrowthOutside1x128 +=
+                FullMath.mulDiv(amounts1[arrayLength - 1], FixedPoint128.Q128, liquidityBeforeTick);
+            return returnState;
+        }
+
+        // otherwise, apply the tick's liquidity, recurse, then update the tick state
+
+        uint256 liquidityAfterTick = liquidityBeforeTick;
+
+        if (initialized) {
+            int128 liquidityNet = self.ticks[nextTick].liquidityNet;
+
+            // if we're moving leftward, we interpret liquidityNet as the opposite sign
+            // safe because liquidityNet cannot be type(int128).min
+            if (isBelow) {
+                liquidityAfterTick = liquidityNet > 0
+                    ? liquidityBeforeTick - uint128(liquidityNet)
+                    : liquidityBeforeTick + uint128(-liquidityNet);
+            } else {
+                liquidityAfterTick = liquidityNet > 0
+                    ? liquidityBeforeTick + uint128(liquidityNet)
+                    : liquidityBeforeTick - uint128(-liquidityNet);
+            }
+        }
+
+        (int24 newNextTick, bool newInitialized) =
+            isBelow ? self.tickBitmap.nextInitializedTickWithinOneWord(nextTick - 1, tickSpacing, true) : self.tickBitmap.nextInitializedTickWithinOneWord(nextTick, tickSpacing, false);
+
+        returnState = donateOutsideRecursive(
+            self,
+            amounts0,
+            amounts1,
+            ticks,
+            arrayLength,
+            newNextTick,
+            newInitialized,
+            liquidityAfterTick,
+            tickSpacing,
+            isBelow
+        );
+
+        if (initialized) {
+            self.ticks[nextTick].feeGrowthOutside0X128 += returnState.cumulativeFeeGrowthOutside0x128;
+            self.ticks[nextTick].feeGrowthOutside1X128 += returnState.cumulativeFeeGrowthOutside1x128;
         }
     }
 
