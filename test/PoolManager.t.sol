@@ -1859,6 +1859,200 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
+    function testDonateRevert_TickListEmpty() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTickList.selector);
+        donateRouter.donateRange(key, new uint256[](0), new uint256[](0), new int24[](0));
+    }
+
+    function testDonateRevert_TickListImbalancedAmounts0() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTickList.selector);
+        donateRouter.donateRange(key, new uint256[](2), new uint256[](1), new int24[](1));
+    }
+
+    function testDonateRevert_TickListImbalancedAmounts1() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTickList.selector);
+        donateRouter.donateRange(key, new uint256[](1), new uint256[](2), new int24[](1));
+    }
+
+    function testDonateRevert_TickListImbalancedTicks() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTickList.selector);
+        donateRouter.donateRange(key, new uint256[](1), new uint256[](1), new int24[](2));
+    }
+
+    function testDonateRevert_TickListTooLow() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = TickMath.MIN_TICK - 1;
+
+        vm.expectRevert(abi.encodePacked(Pool.TickLowerOutOfBounds.selector, int256(TickMath.MIN_TICK - 1)));
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_TickListTooHigh() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = TickMath.MAX_TICK + 1;
+
+        vm.expectRevert(abi.encodePacked(Pool.TickUpperOutOfBounds.selector, int256(TickMath.MAX_TICK + 1)));
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonate_HasLiquidity() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = 0;
+
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_NoLiquidity() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = 20;
+
+        vm.expectRevert(Pool.NoLiquidityToReceiveFees.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_MisorderdListAbove1() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 40.
+        _createLpPosition(key, 0, 40, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](2);
+        amounts0[0] = 1e18;
+        amounts0[1] = 1e18;
+        uint256[] memory amounts1 = new uint256[](2);
+        amounts1[0] = 1e18;
+        amounts1[1] = 1e18;
+        int24[] memory ticks = new int24[](2);
+        ticks[0] = 20;
+        ticks[1] = 10;
+
+        vm.expectRevert(Pool.InvalidTickList.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_MisorderdListAbove2() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 40.
+        _createLpPosition(key, 0, 40, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](2);
+        amounts0[0] = 1e18;
+        amounts0[1] = 1e18;
+        uint256[] memory amounts1 = new uint256[](2);
+        amounts1[0] = 1e18;
+        amounts1[1] = 1e18;
+        int24[] memory ticks = new int24[](2);
+        ticks[0] = 20;
+        ticks[1] = 0;
+
+        // TODO: Shouldn't this revert? tick0 might be considered below active and is causing an issue.
+        vm.expectRevert(Pool.InvalidTickList.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_MisorderdListDual() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 40.
+        _createLpPosition(key, -40, 40, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](3);
+        amounts0[0] = 1e18;
+        amounts0[1] = 1e18;
+        amounts0[2] = 1e18;
+        uint256[] memory amounts1 = new uint256[](3);
+        amounts1[0] = 1e18;
+        amounts1[1] = 1e18;
+        amounts1[2] = 1e18;
+        int24[] memory ticks = new int24[](3);
+        ticks[0] = 20;
+        ticks[1] = 0;
+        ticks[2] = -20;
+
+        // TODO: Shouldn't ticks below be processed first?
+        vm.expectRevert(Pool.InvalidTickList.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
     function test_take_failsWithNoLiquidity() public {
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 3000, hooks: IHooks(address(0)), tickSpacing: 60});
