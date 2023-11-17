@@ -85,6 +85,8 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     address ALL_HOOKS = address(0xff00000000000000000000000000000000000001);
     address MOCK_HOOKS = address(0xfF00000000000000000000000000000000000000);
 
+    uint256 TEST_BALANCE = type(uint256).max / 3 * 2;
+
     function setUp() public {
         initializeTokens();
         manager = Deployers.createFreshManager();
@@ -97,20 +99,20 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         swapRouter = new PoolSwapTest(manager);
         protocolFeeController = new ProtocolFeeControllerTest();
 
-        MockERC20(Currency.unwrap(currency0)).mint(address(this), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).mint(address(this), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).mint(address(this), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).mint(address(this), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(swapRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(swapRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(swapRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(swapRouter), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(modifyPositionRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(modifyPositionRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(modifyPositionRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(modifyPositionRouter), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(donateRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(donateRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(donateRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(donateRouter), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(takeRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(takeRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(takeRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(takeRouter), TEST_BALANCE);
     }
 
     function test_bytecodeSize() public {
@@ -1502,14 +1504,58 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0, "Liquidity left over");
     }
 
-    function testDonateManyRangesBelowCurrentTick() public {
+    function testDonateManyRangesBelowCurrentTick_2Positions(uint256 donateAmount) public {
+        uint256 nPositions = 2;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
+
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+        LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
+        uint256[] memory amounts0 = new uint[](nPositions);
+        amounts0[0] = donateAmount;
+        amounts0[1] = donateAmount;
+
+        uint256[] memory amounts1 = new uint[](nPositions);
+        amounts1[0] = donateAmount;
+        amounts1[1] = donateAmount;
+
+        int24[] memory ticks = new int24[](nPositions);
+        ticks[0] = lpInfo[1].tickLower;
+        ticks[1] = lpInfo[0].tickLower;
+
+        uint256 liquidityBalance0 = key.currency0.balanceOf(address(manager));
+        uint256 liquidityBalance1 = key.currency1.balanceOf(address(manager));
+
+        // Donate and make sure all balances were pulled.
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+        assertEq(key.currency0.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance0);
+        assertEq(key.currency1.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance1);
+
+        // Close all positions.
+        for (uint256 i = 0; i < lpInfo.length; i++) {
+            vm.prank(lpInfo[i].lpAddress);
+            modifyPositionRouter.modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
+                ZERO_BYTES
+            );
+        }
+
+        // Ensure the pool was emptied (some wei rounding imprecision may remain).
+        assertLt(key.currency0.balanceOf(address(manager)), 10);
+        assertLt(key.currency1.balanceOf(address(manager)), 10);
+        assertEq(manager.getLiquidity(key.toId()), 0);
+    }
+
+    function testDonateManyRangesBelowCurrentTick_3Positions(uint256 donateAmount) public {
         uint256 nPositions = 3;
-        uint256 donateAmount = 3 ether;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
 
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
         uint256[] memory amounts0 = new uint[](nPositions);
@@ -1551,13 +1597,59 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
-    function testDonateManyRangesAboveCurrentTick() public {
+    function testDonateManyRangesAboveCurrentTick_2Positions(uint256 donateAmount) public {
+        uint256 nPositions = 2;
+        // NB: Withdrawing the position can overflow the BalanceDelta value.
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / uint256(3) - 1);
+
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+        LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
+        uint256[] memory amounts0 = new uint[](nPositions);
+        amounts0[0] = donateAmount;
+        amounts0[1] = donateAmount;
+
+        uint256[] memory amounts1 = new uint[](nPositions);
+        amounts1[0] = donateAmount;
+        amounts1[1] = donateAmount;
+
+        int24[] memory ticks = new int24[](nPositions);
+        ticks[0] = lpInfo[0].tickUpper;
+        ticks[1] = lpInfo[1].tickUpper - 1;
+
+        uint256 liquidityBalance0 = key.currency0.balanceOf(address(manager));
+        uint256 liquidityBalance1 = key.currency1.balanceOf(address(manager));
+
+        // Donate and make sure all balances were pulled.
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+        assertEq(key.currency0.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance0);
+        assertEq(key.currency1.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance1);
+
+        // Close all positions.
+        for (uint256 i = 0; i < lpInfo.length; i++) {
+            vm.prank(lpInfo[i].lpAddress);
+            modifyPositionRouter.modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
+                ZERO_BYTES
+            );
+        }
+
+        // Ensure the pool was emptied (some wei rounding imprecision may remain).
+        assertLt(key.currency0.balanceOf(address(manager)), 10);
+        assertLt(key.currency1.balanceOf(address(manager)), 10);
+        assertEq(manager.getLiquidity(key.toId()), 0);
+    }
+
+    function testDonateManyRangesAboveCurrentTick_3Positions(uint256 donateAmount) public {
         uint256 nPositions = 3;
-        uint256 donateAmount = 3 ether;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
+
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
         uint256[] memory amounts0 = new uint[](nPositions);
@@ -1599,13 +1691,14 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
-    function testDonateManyRangesBelowOnAndAboveCurrentTick() public {
+    function testDonateManyRangesBelowOnAndAboveCurrentTick(uint256 donateAmount) public {
+        uint256 nPositions = 3;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
+
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
 
-        uint256 nPositions = 3;
-        uint256 donateAmount = 3 ether;
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
         uint256[] memory amounts0 = new uint[](nPositions);
