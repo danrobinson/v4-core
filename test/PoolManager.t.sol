@@ -35,6 +35,7 @@ import {FeeLibrary} from "../src/libraries/FeeLibrary.sol";
 import {Position} from "../src/libraries/Position.sol";
 import {FullMath} from "../src/libraries/FullMath.sol";
 import {FixedPoint96} from "../src/libraries/FixedPoint96.sol";
+import {LibSort} from "solady/src/utils/LibSort.sol";
 
 contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     using Hooks for IHooks;
@@ -1742,14 +1743,14 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
     struct PositionCase {
         uint128 liquidity;
-        int24 tickLower;
-        int24 tickUpper;
+        int256 tickLower;
+        int256 tickUpper;
     }
 
     struct DonateCase {
         uint256 amount0;
         uint256 amount1;
-        int24 tick;
+        int256 tick;
     }
 
     function testDonateMany_Fuzz(PositionCase[] memory positions, DonateCase[] memory donations) public {
@@ -1758,10 +1759,31 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
 
+        // Bound positions to valid tick range.
+        for (uint256 i = 0; i < positions.length; ++i) {
+            positions[i].tickLower = bound(positions[i].tickLower, int256(TickMath.MIN_TICK), int256(TickMath.MAX_TICK));
+            positions[i].tickUpper = bound(positions[i].tickUpper, int256(TickMath.MIN_TICK), int256(TickMath.MAX_TICK));
+        }
+
+        // Bound donations to valid tick range.
+        for (uint256 i = 0; i < donations.length; ++i) {
+            donations[i].tick = bound(donations[i].tick, int256(TickMath.MIN_TICK), int256(TickMath.MAX_TICK));
+        }
+
+        // Add some full range liquidity to avoid no liquidity at tick errors.
+        int24 minTick = _ceilToTickSpacing(key, TickMath.MIN_TICK);
+        int24 maxTick = _truncateToTickSpacing(key, TickMath.MAX_TICK);
+        _createLpPosition(key, minTick, maxTick, 1e18);
+
         // Create positions.
         LpInfo[] memory lpInfo = new LpInfo[](positions.length);
         for (uint256 i = 0; i < positions.length; ++i) {
-            lpInfo[i] = _createLpPosition(key, _nearestTickWithLiquidity(key, positions[i].tickLower), _nearestTickWithLiquidity(key, positions[i].tickUpper), int256(uint256(positions[i].liquidity)));
+            lpInfo[i] = _createLpPosition(
+                key,
+                _max(_truncateToTickSpacing(key, int24(positions[i].tickLower)), minTick),
+                _min(_ceilToTickSpacing(key, int24(positions[i].tickUpper)), maxTick),
+                int256(uint256(positions[i].liquidity))
+            );
         }
 
         // Convert donations cases to donation arguments.
@@ -1769,7 +1791,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         uint256 amount1Sum;
         uint256[] memory amounts0 = new uint256[](donations.length);
         uint256[] memory amounts1 = new uint256[](donations.length);
-        int24[] memory ticks = new int24[](donations.length);
+        int256[] memory ticks = new int256[](donations.length);
         for (uint256 i = 0; i < donations.length; ++i) {
             uint256 amount0 = bound(donations[i].amount0, 0, 2**127 / donations.length);
             uint256 amount1 = bound(donations[i].amount1, 0, 2**127 / donations.length);
@@ -1778,14 +1800,26 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
             amount1Sum += amount1;
             amounts0[i] = amount0;
             amounts1[i] = amount1;
-            ticks[i] = _nearestTickWithLiquidity(key, donations[i].tick);
+            ticks[i] = donations[i].tick;
         }
 
+        // TODO: This dislocates the fuzzers arguments, does this degrade the quality?
+        LibSort.sort(ticks);
+        int24[] memory ticksCast;
+        assembly {
+            ticksCast := ticks
+        }
+
+        console2.log("TICKS LEN:", ticks.length);
+        for (uint256 i = 0; i < ticks.length; ++i) {
+            console2.logInt(ticks[i]);
+            console2.logInt(ticksCast[i]);
+        }
 
         // Donate and make sure all balances were pulled.
         uint256 liquidityBalance0 = key.currency0.balanceOf(address(manager));
         uint256 liquidityBalance1 = key.currency1.balanceOf(address(manager));
-        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+        donateRouter.donateRange(key, amounts0, amounts1, ticksCast);
         assertEq(key.currency0.balanceOf(address(manager)), amount0Sum + liquidityBalance0);
         assertEq(key.currency1.balanceOf(address(manager)), amount1Sum + liquidityBalance1);
 
@@ -2114,9 +2148,28 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
                                     DONATION HELPERS
     //////////////////////////////////////////////////////////////////////////*/
 
-    function _nearestTickWithLiquidity(PoolKey memory key, int24 tick) private view returns (int24) {
-        // TODO: Implement.
-        return 0;
+    function _min(int24 a, int24 b) private pure returns (int24) {
+        if (a < b) {
+            return a;
+        } else {
+            return b;
+        }
+    }
+
+    function _max(int24 a, int24 b) private pure returns (int24) {
+        if (a > b) {
+            return a;
+        } else {
+            return b;
+        }
+    }
+
+    function _truncateToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
+        return tick / key.tickSpacing * key.tickSpacing;
+    }
+
+    function _ceilToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
+        return (tick + key.tickSpacing - 1) / key.tickSpacing * key.tickSpacing;
     }
 
     struct LpInfo {

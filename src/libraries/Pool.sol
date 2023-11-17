@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
+import {console2} from "forge-std/console2.sol";
+
 import {SafeCast} from "./SafeCast.sol";
 import {TickBitmap} from "./TickBitmap.sol";
 import {Position} from "./Position.sol";
@@ -597,13 +599,18 @@ library Pool {
         DonateState memory state;
 
         if (ticks.length == 0) revert TickListMisordered();
+        console2.log("0");
         if (ticks.length != amount0.length || ticks.length != amount1.length) revert TickListMisordered();
+        console2.log("1");
 
         // compute the liquidity that would be in range at (just right of) the leftmost tick by walking down to it
         state.liquidityAtTick = self.liquidity;
         state.tickCurrent = self.slot0.tick;
 
+        console2.logInt(ticks[0]);
+        console2.logInt(TickMath.MIN_TICK);
         if (ticks[0] < TickMath.MIN_TICK) revert TickListMisordered();
+        console2.log("2");
 
         (state.tickNext, state.initialized) =
             self.tickBitmap.nextInitializedTickWithinOneWord(state.tickCurrent, tickSpacing, true);
