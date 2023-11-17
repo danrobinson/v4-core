@@ -1740,6 +1740,71 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
+    struct PositionCase {
+        uint128 liquidity;
+        int24 tickLower;
+        int24 tickUpper;
+    }
+
+    struct DonateCase {
+        uint256 amount0;
+        uint256 amount1;
+        int24 tick;
+    }
+
+    function testDonateMany_Fuzz(PositionCase[] memory positions, DonateCase[] memory donations) public {
+        // Setup target pool.
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create positions.
+        LpInfo[] memory lpInfo = new LpInfo[](positions.length);
+        for (uint256 i = 0; i < positions.length; ++i) {
+            lpInfo[i] = _createLpPosition(key, _nearestTickWithLiquidity(key, positions[i].tickLower), _nearestTickWithLiquidity(key, positions[i].tickUpper), int256(uint256(positions[i].liquidity)));
+        }
+
+        // Convert donations cases to donation arguments.
+        uint256 amount0Sum;
+        uint256 amount1Sum;
+        uint256[] memory amounts0 = new uint256[](donations.length);
+        uint256[] memory amounts1 = new uint256[](donations.length);
+        int24[] memory ticks = new int24[](donations.length);
+        for (uint256 i = 0; i < donations.length; ++i) {
+            uint256 amount0 = bound(donations[i].amount0, 0, 2**127 / donations.length);
+            uint256 amount1 = bound(donations[i].amount1, 0, 2**127 / donations.length);
+
+            amount0Sum += amount0;
+            amount1Sum += amount1;
+            amounts0[i] = amount0;
+            amounts1[i] = amount1;
+            ticks[i] = _nearestTickWithLiquidity(key, donations[i].tick);
+        }
+
+
+        // Donate and make sure all balances were pulled.
+        uint256 liquidityBalance0 = key.currency0.balanceOf(address(manager));
+        uint256 liquidityBalance1 = key.currency1.balanceOf(address(manager));
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+        assertEq(key.currency0.balanceOf(address(manager)), amount0Sum + liquidityBalance0);
+        assertEq(key.currency1.balanceOf(address(manager)), amount1Sum + liquidityBalance1);
+
+        // Close all positions.
+        for (uint256 i = 0; i < lpInfo.length; i++) {
+            vm.prank(lpInfo[i].lpAddress);
+            modifyPositionRouter.modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
+                ZERO_BYTES
+            );
+        }
+
+        // Ensure the pool was emptied (some wei rounding imprecision may remain).
+        assertLt(key.currency0.balanceOf(address(manager)), 10);
+        assertLt(key.currency1.balanceOf(address(manager)), 10);
+        assertEq(manager.getLiquidity(key.toId()), 0);
+    }
+
     function test_take_failsWithNoLiquidity() public {
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 3000, hooks: IHooks(address(0)), tickSpacing: 60});
@@ -2043,6 +2108,15 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         Position.Info memory managerPosition = manager.getPosition(key.toId(), address(modifyPositionRouter), -120, 120);
 
         assertEq(managerPosition.liquidity, 5 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                    DONATION HELPERS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    function _nearestTickWithLiquidity(PoolKey memory key, int24 tick) private view returns (int24) {
+        // TODO: Implement.
+        return 0;
     }
 
     struct LpInfo {
