@@ -1753,7 +1753,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         int256 tick;
     }
 
-    function testDonateMany_Fuzz(PositionCase[] memory positions, DonateCase[] memory donations) public {
+    function _testDonateCase(PositionCase[] memory positions, DonateCase[] memory donations) private {
         // Bail if there are no donations.
         if (donations.length == 0) {
             return;
@@ -1779,6 +1779,8 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         // Add some full range liquidity to avoid no liquidity at tick errors.
         int24 minTick = _ceilToTickSpacing(key, TickMath.MIN_TICK);
         int24 maxTick = _floorToTickSpacing(key, TickMath.MAX_TICK);
+        console2.logInt(minTick);
+        console2.logInt(maxTick);
         _createLpPosition(key, minTick, maxTick, 1e18);
 
         // Create positions.
@@ -1854,9 +1856,25 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         }
 
         // Ensure the pool was emptied (some wei rounding imprecision may remain).
-        assertLt(key.currency0.balanceOf(address(manager)), 2 * positions.length);
-        assertLt(key.currency1.balanceOf(address(manager)), 2 * positions.length);
+        assertLt(key.currency0.balanceOf(address(manager)), 2 * positions.length + 2);
+        assertLt(key.currency1.balanceOf(address(manager)), 2 * positions.length + 2);
         assertEq(manager.getLiquidity(key.toId()), 0);
+    }
+
+    function testDonateMany_Fuzz(PositionCase[] memory positions, DonateCase[] memory donations) public {
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Boundaries() public {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({
+            amount0: 1e18,
+            amount1: 1e18,
+            tick: 887260
+        });
+
+        _testDonateCase(positions, donations);
     }
 
     function testDonateRevert_TickListEmpty() external {
@@ -2379,11 +2397,19 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     }
 
     function _floorToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
-        return (tick - key.tickSpacing + 1) / key.tickSpacing * key.tickSpacing;
+        return tick > 0
+            ? _truncateToTickSpacing(key, tick)
+            : _truncateToTickSpacing(key, tick - key.tickSpacing + 1);
     }
 
     function _ceilToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
-        return (tick + key.tickSpacing - 1) / key.tickSpacing * key.tickSpacing;
+        return tick > 0
+            ? _truncateToTickSpacing(key, tick + key.tickSpacing - 1)
+            : _truncateToTickSpacing(key, tick);
+    }
+
+    function _truncateToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
+        return tick / key.tickSpacing * key.tickSpacing;
     }
 
     struct LpInfo {

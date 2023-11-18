@@ -635,6 +635,7 @@ library Pool {
         // it will also distribute fees to the current tick, if that one is specified
 
         // the index of the ticks array that we're currently on
+        uint256 donatedBelow = 0;
         uint256 i = 0;
 
         // skip the step that updates the tick on the first run through this loop
@@ -681,6 +682,8 @@ library Pool {
                     FullMath.mulDiv(amount0[i], FixedPoint128.Q128, state.liquidityAtTick);
                 state.cumulativeFeeGrowthBelow1x128 +=
                     FullMath.mulDiv(amount1[i], FixedPoint128.Q128, state.liquidityAtTick);
+
+                donatedBelow++;
                 i++;
             }
         }
@@ -713,6 +716,7 @@ library Pool {
 
         // walk back over initialized ticks to the current tick
         // the index of the ticks array that we're currently on
+        uint256 donatedAbove = 0;
         i = ticks.length - 1;
 
         // tickNext is currently the tick above the highest tick in the list
@@ -762,12 +766,17 @@ library Pool {
                 state.cumulativeFeeGrowthAbove1x128 +=
                     FullMath.mulDiv(amount1[i], FixedPoint128.Q128, state.liquidityAtTick);
 
+                donatedAbove++;
                 if (i > 0) i--;
                 else exhausted = true;
             }
         }
 
-        // TODO: fail if array was not contiguous
+        // If we did not process an equal number of donations, than the tick
+        // list was improperly ordered.
+        if (donatedBelow + donatedAbove != ticks.length) {
+            revert InvalidTickList();
+        }
 
         // update the global feeGrowthGlobal values
         delta = toBalanceDelta(state.cumulativeAmount0.toInt128(), state.cumulativeAmount1.toInt128());
