@@ -1981,7 +1981,26 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         donateRouter.donateRange(key, amounts0, amounts1, ticks);
     }
 
-    function testDonateRevert_NoLiquidity() external {
+    function testDonateRevert_NoLiquidityBelow() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, -10, 0, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = -20;
+
+        vm.expectRevert(Pool.NoLiquidityToReceiveFees.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_NoLiquidityAbove() external {
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
@@ -2038,9 +2057,8 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         amounts1[1] = 1e18;
         int24[] memory ticks = new int24[](2);
         ticks[0] = 20;
-        ticks[1] = 0;
+        ticks[1] = 0; // Equal to current tick is considered below.
 
-        // TODO: Shouldn't this revert? tick0 might be considered below active and is causing an issue.
         vm.expectRevert(Pool.InvalidTickList.selector);
         donateRouter.donateRange(key, amounts0, amounts1, ticks);
     }
@@ -2066,7 +2084,6 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         ticks[1] = 0;
         ticks[2] = -20;
 
-        // TODO: Shouldn't ticks below be processed first?
         vm.expectRevert(Pool.InvalidTickList.selector);
         donateRouter.donateRange(key, amounts0, amounts1, ticks);
     }
