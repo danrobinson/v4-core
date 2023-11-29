@@ -1088,9 +1088,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo1.tickLower;
@@ -1137,9 +1137,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = -15;
@@ -1187,9 +1187,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = -25;
@@ -1242,9 +1242,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo2.tickLower;
@@ -1296,9 +1296,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo1.tickLower;
@@ -1358,9 +1358,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo2.tickLower;
@@ -1412,9 +1412,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = 15;
@@ -1462,9 +1462,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = 25;
@@ -1514,11 +1514,11 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
 
@@ -1559,12 +1559,12 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
         amounts0[2] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
         amounts1[2] = donateAmount;
@@ -1608,11 +1608,11 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
 
@@ -1653,12 +1653,12 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
         amounts0[2] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
         amounts1[2] = donateAmount;
@@ -1702,12 +1702,12 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
         amounts0[2] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
         amounts1[2] = donateAmount;
@@ -2097,7 +2097,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     }
 
     function test_take_failsWithInvalidTokensThatDoNotReturnTrueOnTransfer() public {
-        TestInvalidERC20 invalidToken = new TestInvalidERC20(2**255);
+        TestInvalidERC20 invalidToken = new TestInvalidERC20(2 ** 255);
         Currency invalidCurrency = Currency.wrap(address(invalidToken));
         bool currency0Invalid = invalidCurrency < currency0;
         PoolKey memory key = PoolKey({

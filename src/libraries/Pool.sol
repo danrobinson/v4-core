@@ -58,8 +58,8 @@ library Pool {
     /// @notice Thrown by donate if there is currently 0 liquidity, since the fees will not go to any liquidity providers
     error NoLiquidityToReceiveFees();
 
-    /// @notice Thrown by donate if the tick list is malformed
-    /// @dev A malformed tick list is either:
+    /// @notice Thrown by donate if the tick list length is invalid
+    /// @dev An invalid tick list length is either:
     ///      - Empty.
     ///      - Has duplicate ticks.
     ///      - Has an unbalanced number of ticks, amount0, or amount1 entries.
