@@ -58,13 +58,17 @@ library Pool {
     /// @notice Thrown by donate if there is currently 0 liquidity, since the fees will not go to any liquidity providers
     error NoLiquidityToReceiveFees();
 
-    /// @notice Thrown by donate if the tick list is malformed.
+    /// @notice Thrown by donate if the tick list is
     /// @dev A malformed tick list is either:
     ///      - Empty.
-    ///      - Not sorted in ascending order.
     ///      - Has duplicate ticks.
     ///      - Has an unbalanced number of ticks, amount0, or amount1 entries.
-    error InvalidTickList();
+    error InvalidTicksListLength();
+
+    /// @notice Thrown by donate if the tick list is
+    /// @dev A malformed tick list is either:
+    ///      - Not sorted in ascending order.
+    error InvalidTicksListOrder();
 
     /// Each uint24 variable packs both the swap fees and the withdraw fees represented as integer denominators (1/x). The upper 12 bits are the swap fees, and the lower 12 bits
     /// are the withdraw fees. For swap fees, the upper 6 bits are the fee for trading 1 for 0, and the lower 6 are for 0 for 1 and are taken as a percentage of the lp swap fee.
@@ -601,8 +605,8 @@ library Pool {
     ) internal returns (BalanceDelta delta) {
         DonateState memory state;
 
-        if (ticks.length == 0) revert InvalidTickList();
-        if (ticks.length != amount0.length || ticks.length != amount1.length) revert InvalidTickList();
+        if (ticks.length == 0) revert InvalidTicksListLength();
+        if (ticks.length != amount0.length || ticks.length != amount1.length) revert InvalidTicksListLength();
 
         // compute the liquidity that would be in range at (just right of) the leftmost tick by walking down to it
         state.liquidityAtTick = self.liquidity;
@@ -674,7 +678,7 @@ library Pool {
 
             // check if we crossed any of the ticks that we are distributing fees to
             while (i < ticks.length && ticks[i] < state.tickNext && ticks[i] <= state.tickCurrent) {
-                if (i + 1 < ticks.length && ticks[i] >= ticks[i + 1]) revert InvalidTickList();
+                if (i + 1 < ticks.length && ticks[i] >= ticks[i + 1]) revert InvalidTicksListOrder();
                 if (state.liquidityAtTick == 0) revert NoLiquidityToReceiveFees();
                 state.cumulativeAmount0 += amount0[i];
                 state.cumulativeAmount1 += amount1[i];
@@ -757,7 +761,7 @@ library Pool {
 
             // check if we crossed any of the ticks that we are distributing fees to
             while (!exhausted && ticks[i] >= state.tickNext && ticks[i] > state.tickCurrent) {
-                if (i >= 1 && ticks[i - 1] >= ticks[i]) revert InvalidTickList();
+                if (i >= 1 && ticks[i - 1] >= ticks[i]) revert InvalidTicksListOrder();
                 if (state.liquidityAtTick == 0) revert NoLiquidityToReceiveFees();
                 state.cumulativeAmount0 += amount0[i];
                 state.cumulativeAmount1 += amount1[i];
@@ -775,7 +779,7 @@ library Pool {
         // If we did not process an equal number of donations, than the tick
         // list was improperly ordered.
         if (donatedBelow + donatedAbove != ticks.length) {
-            revert InvalidTickList();
+            revert InvalidTicksListOrder();
         }
 
         // update the global feeGrowthGlobal values

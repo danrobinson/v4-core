@@ -1767,8 +1767,16 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         // Bound positions to valid tick range & avoid liquidity overflow.
         for (uint256 i = 0; i < positions.length; ++i) {
             positions[i].liquidity = uint128(bound(positions[i].liquidity, 1, 2 ** 100));
-            positions[i].tick0 = bound(positions[i].tick0, int256(TickMath.MIN_TICK + key.tickSpacing), int256(TickMath.MAX_TICK - key.tickSpacing));
-            positions[i].tick1 = bound(positions[i].tick1, int256(TickMath.MIN_TICK + key.tickSpacing), int256(TickMath.MAX_TICK - key.tickSpacing));
+            positions[i].tick0 = bound(
+                positions[i].tick0,
+                int256(TickMath.MIN_TICK + key.tickSpacing),
+                int256(TickMath.MAX_TICK - key.tickSpacing)
+            );
+            positions[i].tick1 = bound(
+                positions[i].tick1,
+                int256(TickMath.MIN_TICK + key.tickSpacing),
+                int256(TickMath.MAX_TICK - key.tickSpacing)
+            );
         }
 
         // Bound donations to valid tick range.
@@ -1809,8 +1817,8 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         uint256[] memory amounts1 = new uint256[](donations.length);
         int256[] memory ticks = new int256[](donations.length);
         for (uint256 i = 0; i < donations.length; ++i) {
-            uint256 amount0 = bound(donations[i].amount0, 0, 2**127 / donations.length);
-            uint256 amount1 = bound(donations[i].amount1, 0, 2**127 / donations.length);
+            uint256 amount0 = bound(donations[i].amount0, 0, 2 ** 127 / donations.length);
+            uint256 amount1 = bound(donations[i].amount1, 0, 2 ** 127 / donations.length);
 
             amount0Sum += amount0;
             amount1Sum += amount1;
@@ -1841,11 +1849,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(key.currency1.balanceOf(address(manager)), amount1Sum + liquidityBalance1);
 
         // Close all positions.
-        modifyPositionRouter.modifyPosition(
-            key,
-            IPoolManager.ModifyPositionParams(minTick, maxTick, -1e18),
-            ZERO_BYTES
-        );
+        modifyPositionRouter.modifyPosition(key, IPoolManager.ModifyPositionParams(minTick, maxTick, -1e18), ZERO_BYTES);
         for (uint256 i = 0; i < lpInfo.length; i++) {
             vm.prank(lpInfo[i].lpAddress);
             modifyPositionRouter.modifyPosition(
@@ -1868,11 +1872,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     function testDonateMany_Boundaries() public {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({
-            amount0: 1e18,
-            amount1: 1e18,
-            tick: 887260
-        });
+        donations[0] = DonateCase({amount0: 1e18, amount1: 1e18, tick: 887260});
 
         _testDonateCase(positions, donations);
     }
@@ -1885,7 +1885,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         // Create an LP position with tickLower 0 and tickUpper 10.
         _createLpPosition(key, 0, 10, 1e18);
 
-        vm.expectRevert(Pool.InvalidTickList.selector);
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
         donateRouter.donateRange(key, new uint256[](0), new uint256[](0), new int24[](0));
     }
 
@@ -1897,7 +1897,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         // Create an LP position with tickLower 0 and tickUpper 10.
         _createLpPosition(key, 0, 10, 1e18);
 
-        vm.expectRevert(Pool.InvalidTickList.selector);
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
         donateRouter.donateRange(key, new uint256[](2), new uint256[](1), new int24[](1));
     }
 
@@ -1909,7 +1909,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         // Create an LP position with tickLower 0 and tickUpper 10.
         _createLpPosition(key, 0, 10, 1e18);
 
-        vm.expectRevert(Pool.InvalidTickList.selector);
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
         donateRouter.donateRange(key, new uint256[](1), new uint256[](2), new int24[](1));
     }
 
@@ -1921,7 +1921,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         // Create an LP position with tickLower 0 and tickUpper 10.
         _createLpPosition(key, 0, 10, 1e18);
 
-        vm.expectRevert(Pool.InvalidTickList.selector);
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
         donateRouter.donateRange(key, new uint256[](1), new uint256[](1), new int24[](2));
     }
 
@@ -2037,7 +2037,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         ticks[0] = 20;
         ticks[1] = 10;
 
-        vm.expectRevert(Pool.InvalidTickList.selector);
+        vm.expectRevert(Pool.InvalidTicksListOrder.selector);
         donateRouter.donateRange(key, amounts0, amounts1, ticks);
     }
 
@@ -2059,7 +2059,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         ticks[0] = 20;
         ticks[1] = 0; // Equal to current tick is considered below.
 
-        vm.expectRevert(Pool.InvalidTickList.selector);
+        vm.expectRevert(Pool.InvalidTicksListOrder.selector);
         donateRouter.donateRange(key, amounts0, amounts1, ticks);
     }
 
@@ -2084,7 +2084,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         ticks[1] = 0;
         ticks[2] = -20;
 
-        vm.expectRevert(Pool.InvalidTickList.selector);
+        vm.expectRevert(Pool.InvalidTicksListOrder.selector);
         donateRouter.donateRange(key, amounts0, amounts1, ticks);
     }
 
@@ -2414,15 +2414,11 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     }
 
     function _floorToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
-        return tick > 0
-            ? _truncateToTickSpacing(key, tick)
-            : _truncateToTickSpacing(key, tick - key.tickSpacing + 1);
+        return tick > 0 ? _truncateToTickSpacing(key, tick) : _truncateToTickSpacing(key, tick - key.tickSpacing + 1);
     }
 
     function _ceilToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
-        return tick > 0
-            ? _truncateToTickSpacing(key, tick + key.tickSpacing - 1)
-            : _truncateToTickSpacing(key, tick);
+        return tick > 0 ? _truncateToTickSpacing(key, tick + key.tickSpacing - 1) : _truncateToTickSpacing(key, tick);
     }
 
     function _truncateToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
