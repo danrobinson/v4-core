@@ -58,16 +58,14 @@ library Pool {
     /// @notice Thrown by donate if there is currently 0 liquidity, since the fees will not go to any liquidity providers
     error NoLiquidityToReceiveFees();
 
-    /// @notice Thrown by donate if the tick list is
+    /// @notice Thrown by donate if the tick list is malformed
     /// @dev A malformed tick list is either:
     ///      - Empty.
     ///      - Has duplicate ticks.
     ///      - Has an unbalanced number of ticks, amount0, or amount1 entries.
     error InvalidTicksListLength();
 
-    /// @notice Thrown by donate if the tick list is
-    /// @dev A malformed tick list is either:
-    ///      - Not sorted in ascending order.
+    /// @notice Thrown by donate if the tick list is not sorted in ascending order.
     error InvalidTicksListOrder();
 
     /// Each uint24 variable packs both the swap fees and the withdraw fees represented as integer denominators (1/x). The upper 12 bits are the swap fees, and the lower 12 bits
