@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
+import {console2} from "forge-std/console2.sol";
+
 import {Hooks} from "./libraries/Hooks.sol";
 import {Pool} from "./libraries/Pool.sol";
 import {SafeCast} from "./libraries/SafeCast.sol";
@@ -152,7 +154,7 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
         }
     }
 
-    function _accountDelta(Currency currency, int128 delta) internal {
+    function _accountDelta(Currency currency, int256 delta) internal {
         if (delta == 0) return;
 
         address locker = lockData.getActiveLock();
@@ -188,6 +190,7 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
         IPoolManager.ModifyPositionParams memory params,
         bytes calldata hookData
     ) external override noDelegateCall onlyByLocker returns (BalanceDelta delta) {
+        console2.log("0");
         if (key.hooks.shouldCallBeforeModifyPosition()) {
             if (
                 key.hooks.beforeModifyPosition(msg.sender, key, params, hookData)
@@ -196,6 +199,8 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
                 revert Hooks.InvalidHookResponse();
             }
         }
+
+        console2.logInt(params.liquidityDelta);
 
         PoolId id = key.toId();
         Pool.FeeAmounts memory feeAmounts;
@@ -209,7 +214,9 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
             })
         );
 
+        console2.log("1");
         _accountPoolBalanceDelta(key, delta);
+        console2.log("2");
 
         unchecked {
             if (feeAmounts.feeForProtocol0 > 0) {
@@ -226,6 +233,8 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
             }
         }
 
+        console2.log("3");
+
         if (key.hooks.shouldCallAfterModifyPosition()) {
             if (
                 key.hooks.afterModifyPosition(msg.sender, key, params, delta, hookData)
@@ -234,6 +243,8 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
                 revert Hooks.InvalidHookResponse();
             }
         }
+
+        console2.log("4");
 
         emit ModifyPosition(id, msg.sender, params.tickLower, params.tickUpper, params.liquidityDelta);
     }
@@ -365,7 +376,7 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
 
     /// @inheritdoc IPoolManager
     function take(Currency currency, address to, uint256 amount) external override noDelegateCall onlyByLocker {
-        _accountDelta(currency, amount.toInt128());
+        _accountDelta(currency, int256(amount));
         reservesOf[currency] -= amount;
         currency.transfer(to, amount);
     }

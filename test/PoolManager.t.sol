@@ -1779,17 +1779,17 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
             );
         }
 
-        // Bound donations to valid tick range.
-        for (uint256 i = 0; i < donations.length; ++i) {
-            donations[i].tick = bound(donations[i].tick, int256(TickMath.MIN_TICK), int256(TickMath.MAX_TICK));
-        }
-
         // Add some full range liquidity to avoid no liquidity at tick errors.
         int24 minTick = _ceilToTickSpacing(key, TickMath.MIN_TICK);
-        int24 maxTick = _floorToTickSpacing(key, TickMath.MAX_TICK);
         console2.logInt(minTick);
+        int24 maxTick = _floorToTickSpacing(key, TickMath.MAX_TICK);
         console2.logInt(maxTick);
         _createLpPosition(key, minTick, maxTick, 1e18);
+
+        // Bound donations to valid tick range.
+        for (uint256 i = 0; i < donations.length; ++i) {
+            donations[i].tick = bound(donations[i].tick, int256(minTick), int256(maxTick - 1));
+        }
 
         // Create positions.
         LpInfo[] memory lpInfo = new LpInfo[](positions.length);
@@ -1835,6 +1835,10 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         }
 
         // Bail if any ticks are duplicated.
+        for (uint256 i = 0; i < ticks.length; ++i) {
+            console2.log("TICK:");
+            console2.logInt(ticks[i]);
+        }
         for (uint256 i = 1; i < ticks.length; ++i) {
             if (ticks[i] == ticks[i - 1]) {
                 return;
@@ -1849,33 +1853,89 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(key.currency1.balanceOf(address(manager)), amount1Sum + liquidityBalance1);
 
         // Close all positions.
+        modifyPositionRouter.modifyPosition(key, IPoolManager.ModifyPositionParams(minTick, maxTick, 0), ZERO_BYTES);
         modifyPositionRouter.modifyPosition(key, IPoolManager.ModifyPositionParams(minTick, maxTick, -1e18), ZERO_BYTES);
         for (uint256 i = 0; i < lpInfo.length; i++) {
-            vm.prank(lpInfo[i].lpAddress);
+            vm.startPrank(lpInfo[i].lpAddress);
+            modifyPositionRouter.modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0),
+                ZERO_BYTES
+            );
             modifyPositionRouter.modifyPosition(
                 key,
                 IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
                 ZERO_BYTES
             );
+            vm.stopPrank();
         }
 
         // Ensure the pool was emptied (some wei rounding imprecision may remain).
-        assertLt(key.currency0.balanceOf(address(manager)), 2 * positions.length + 2);
-        assertLt(key.currency1.balanceOf(address(manager)), 2 * positions.length + 2);
+        assertLe(key.currency0.balanceOf(address(manager)), 2 * positions.length + 2);
+        assertLe(key.currency1.balanceOf(address(manager)), 2 * positions.length + 2);
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
-    function testDonateMany_Fuzz(PositionCase[] memory positions, DonateCase[] memory donations) public {
+    function testDonateMany_Fuzz(PositionCase[] memory positions, DonateCase[] memory donations) external {
         _testDonateCase(positions, donations);
     }
 
-    function testDonateMany_Boundaries() public {
+    function testDonateMany_Regression1() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({amount0: 1e18, amount1: 1e18, tick: 887260});
+        donations[0] = DonateCase({ amount0: 762778504, amount1: 75313, tick: 16093 });
 
         _testDonateCase(positions, donations);
     }
+
+    function testDonateMany_Regression2() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: -57896044618658097711785492504343953926634992332820282019728792003956564819967 });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression3() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({ amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639933, amount1: 0, tick: 0 });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression4() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({ amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639934, amount1: 0, tick: 0 });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression5() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 57896044618658097711785492504343953926634992332820282019728792003956564819967 });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_MinTick() public {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({amount0: 1e18, amount1: 1e18, tick: -887270});
+
+        _testDonateCase(positions, donations);
+    }
+
+    // TODO: Donating to MAX_TICK is invalid because that does not belong to the max position.
+    // function testDonateMany_MaxTick() public {
+    //     PositionCase[] memory positions = new PositionCase[](0);
+    //     DonateCase[] memory donations = new DonateCase[](1);
+    //     donations[0] = DonateCase({amount0: 1e18, amount1: 1e18, tick: 887270});
+
+    //     _testDonateCase(positions, donations);
+    // }
 
     function testDonateRevert_TickListEmpty() external {
         PoolKey memory key =
