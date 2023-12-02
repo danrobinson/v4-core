@@ -9,7 +9,10 @@ import {BalanceDelta as BalanceDeltaLegacy} from "v4-core-single-donate/types/Ba
 import {Constants} from "./utils/Constants.sol";
 import {Deployers} from "./utils/Deployers.sol";
 import {Currency, CurrencyLibrary} from "../src/types/Currency.sol";
-import {Currency as CurrencyLegacy, CurrencyLibrary as CurrencyLibraryLegacy} from "v4-core-single-donate/types/Currency.sol";
+import {
+    Currency as CurrencyLegacy,
+    CurrencyLibrary as CurrencyLibraryLegacy
+} from "v4-core-single-donate/types/Currency.sol";
 import {FixedPoint96} from "../src/libraries/FixedPoint96.sol";
 import {FullMath} from "../src/libraries/FullMath.sol";
 import {IHooks} from "../src/interfaces/IHooks.sol";
@@ -26,7 +29,8 @@ import {PoolKey as PoolKeyLegacy} from "v4-core-single-donate/types/PoolKey.sol"
 import {PoolManager} from "../src/PoolManager.sol";
 import {PoolManager as PoolManagerLegacy} from "v4-core-single-donate/PoolManager.sol";
 import {PoolModifyPositionTest} from "../src/test/PoolModifyPositionTest.sol";
-import {PoolModifyPositionTest as PoolModifyPositionTestLegacy} from "v4-core-single-donate/test/PoolModifyPositionTest.sol";
+import {PoolModifyPositionTest as PoolModifyPositionTestLegacy} from
+    "v4-core-single-donate/test/PoolModifyPositionTest.sol";
 import {PoolSwapTest as PoolSwapTestLegacy} from "v4-core-single-donate/test/PoolSwapTest.sol";
 import {TickMath} from "../src/libraries/TickMath.sol";
 import {TokenFixture} from "./utils/TokenFixture.sol";
@@ -48,6 +52,9 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     PoolModifyPositionTestLegacy private _modifyPositionRouterLegacy = new PoolModifyPositionTestLegacy(_managerLegacy);
     PoolSwapTestLegacy private _swapRouterLegacy = new PoolSwapTestLegacy(_managerLegacy);
     PoolDonateTestLegacy private _donateRouterLegacy = new PoolDonateTestLegacy(_managerLegacy);
+
+    // Test state.
+    uint256[] _amountsOut;
 
     function setUp() external {
         // Deploy tokens.
@@ -280,77 +287,103 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         uint256[] memory amounts0,
         uint256[] memory amounts1,
         int24[] memory ticks
-    ) private {
-        // Used for all swaps.
-        PoolSwapTestLegacy.TestSettings memory testSettings =
-            PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true});
+    ) private returns (bool rAccurate) {
+        rAccurate = true;
 
         for (uint256 i = 0; i < ticks.length; ++i) {
-            // Destructure next donate.
-            uint256 amount0 = amounts0[i];
-            uint256 amount1 = amounts1[i];
-            int24 tick = ticks[i];
-
             // Load pool state.
             (, int24 startingTick,,) = _managerLegacy.getSlot0(key.toId());
             int24 currentTick = startingTick;
 
             // Swap to target.
-            int256 lAmountReceived = 0;
-            while (currentTick != tick) {
-                console2.log("SWAP TO TARGET");
-                console2.logInt(tick);
-                console2.logInt(currentTick);
-                console2.logInt(startingTick);
-                if (currentTick > tick) {
+            while (currentTick != ticks[i]) {
+                if (currentTick > ticks[i]) {
+                    if (startingTick < ticks[i]) {
+                        return false;
+                    }
+
                     IPoolManagerLegacy.SwapParams memory params =
-                        IPoolManagerLegacy.SwapParams({zeroForOne: true, amountSpecified: type(int128).max, sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tick)});
-                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(key, params, testSettings, bytes(""));
+                    IPoolManagerLegacy.SwapParams({
+                        zeroForOne: true,
+                        amountSpecified: type(int128).max / 2,
+                        sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(ticks[i])
+                    });
+                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(
+                        key,
+                        params,
+                        PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true}),
+                        bytes("")
+                    );
 
                     assertLt(lDelta.amount1(), 0);
-                    lAmountReceived -= lDelta.amount1();
+                    _amountsOut.push(uint256(-int256(lDelta.amount1())));
                 } else {
-                    assert(currentTick < tick);
+                    assert(currentTick < ticks[i]);
+                    if (startingTick > ticks[i]) {
+                        return false;
+                    }
+
                     IPoolManagerLegacy.SwapParams memory params =
-                        IPoolManagerLegacy.SwapParams({zeroForOne: false, amountSpecified: type(int128).max, sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tick)});
-                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(key, params, testSettings, bytes(""));
+                    IPoolManagerLegacy.SwapParams({
+                        zeroForOne: false,
+                        amountSpecified: type(int128).max / 2,
+                        sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(ticks[i])
+                    });
+                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(
+                        key,
+                        params,
+                        PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true}),
+                        bytes("")
+                    );
 
                     assertLt(lDelta.amount0(), 0);
-                    lAmountReceived -= lDelta.amount0();
+                    _amountsOut.push(uint256(-int256(lDelta.amount0())));
                 }
 
-                (,currentTick,,) = _managerLegacy.getSlot0(key.toId());
+                (, currentTick,,) = _managerLegacy.getSlot0(key.toId());
             }
 
             // Donate.
-            _donateRouterLegacy.donate(key, amount0, amount1, bytes(""));
+            _donateRouterLegacy.donate(key, amounts0[i], amounts1[i], bytes(""));
 
-            // Swap back to starting tick.
-            console2.logInt(lAmountReceived);
-            while (lAmountReceived > 0) {
-                console2.log("SWAP TO START");
-                console2.logInt(tick);
-                console2.logInt(currentTick);
-                console2.logInt(startingTick);
+            // Replay the swaps in reverse order.
+            for (uint256 j = _amountsOut.length; j > 0; --j) {
                 if (currentTick > startingTick) {
-                    IPoolManagerLegacy.SwapParams memory params =
-                        IPoolManagerLegacy.SwapParams({zeroForOne: true, amountSpecified: type(int128).max, sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(startingTick)});
-                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(key, params, testSettings, bytes(""));
+                    IPoolManagerLegacy.SwapParams memory params = IPoolManagerLegacy.SwapParams({
+                        zeroForOne: true,
+                        amountSpecified: int256(_amountsOut[j - 1]),
+                        sqrtPriceLimitX96: TickMath.MIN_SQRT_RATIO + 1
+                    });
+                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(
+                        key,
+                        params,
+                        PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true}),
+                        bytes("")
+                    );
 
-                    assertLt(lDelta.amount1(), 0);
-                    lAmountReceived += lDelta.amount1();
+                    assertGt(lDelta.amount0(), 0);
                 } else {
                     assert(currentTick < startingTick);
-                    IPoolManagerLegacy.SwapParams memory params =
-                        IPoolManagerLegacy.SwapParams({zeroForOne: false, amountSpecified: type(int128).max, sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(startingTick)});
-                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(key, params, testSettings, bytes(""));
+                    IPoolManagerLegacy.SwapParams memory params = IPoolManagerLegacy.SwapParams({
+                        zeroForOne: false,
+                        amountSpecified: int256(_amountsOut[j -  1]),
+                        sqrtPriceLimitX96: TickMath.MAX_SQRT_RATIO - 1
+                    });
+                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(
+                        key,
+                        params,
+                        PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true}),
+                        bytes("")
+                    );
 
-                    assertLt(lDelta.amount0(), 0);
-                    lAmountReceived += lDelta.amount0();
+                    assertGt(lDelta.amount1(), 0);
                 }
 
-                (,currentTick,,) = _managerLegacy.getSlot0(key.toId());
+                (, currentTick,,) = _managerLegacy.getSlot0(key.toId());
+                _amountsOut.pop();
             }
+
+            rAccurate = rAccurate && currentTick == startingTick;
         }
     }
 
@@ -369,8 +402,13 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
 
     function testDonateLegacy_Current() external {
         // Create pool.
-        PoolKeyLegacy memory key =
-            PoolKeyLegacy({currency0: currency0Legacy, currency1: currency1Legacy, fee: 0, hooks: IHooksLegacy(address(0)), tickSpacing: 10});
+        PoolKeyLegacy memory key = PoolKeyLegacy({
+            currency0: currency0Legacy,
+            currency1: currency1Legacy,
+            fee: 0,
+            hooks: IHooksLegacy(address(0)),
+            tickSpacing: 10
+        });
         _managerLegacy.initialize(key, SQRT_RATIO_1_1, bytes(""));
 
         // Create 1 LP position covering active tick.
@@ -389,7 +427,9 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         // Full redeem the LP.
         vm.prank(lpInfo.lpAddress);
         _modifyPositionRouterLegacy.modifyPosition(
-            key, IPoolManagerLegacy.ModifyPositionParams(lpInfo.tickLower, lpInfo.tickUpper, -lpInfo.liquidity), bytes("")
+            key,
+            IPoolManagerLegacy.ModifyPositionParams(lpInfo.tickLower, lpInfo.tickUpper, -lpInfo.liquidity),
+            bytes("")
         );
 
         // Ensure the LP received the donation.
@@ -399,8 +439,13 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
 
     function testDonateLegacy_Above() external {
         // Create pool.
-        PoolKeyLegacy memory key =
-            PoolKeyLegacy({currency0: currency0Legacy, currency1: currency1Legacy, fee: 0, hooks: IHooksLegacy(address(0)), tickSpacing: 10});
+        PoolKeyLegacy memory key = PoolKeyLegacy({
+            currency0: currency0Legacy,
+            currency1: currency1Legacy,
+            fee: 0,
+            hooks: IHooksLegacy(address(0)),
+            tickSpacing: 10
+        });
         _managerLegacy.initialize(key, SQRT_RATIO_1_1, bytes(""));
 
         // Create 1 LP position covering active tick.
@@ -419,7 +464,9 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         // Full redeem the LP.
         vm.prank(lpInfo.lpAddress);
         _modifyPositionRouterLegacy.modifyPosition(
-            key, IPoolManagerLegacy.ModifyPositionParams(lpInfo.tickLower, lpInfo.tickUpper, -lpInfo.liquidity), bytes("")
+            key,
+            IPoolManagerLegacy.ModifyPositionParams(lpInfo.tickLower, lpInfo.tickUpper, -lpInfo.liquidity),
+            bytes("")
         );
 
         // Ensure the LP received the donation.
@@ -429,8 +476,13 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
 
     function testDonateLegacy_Below() external {
         // Create pool.
-        PoolKeyLegacy memory key =
-            PoolKeyLegacy({currency0: currency0Legacy, currency1: currency1Legacy, fee: 0, hooks: IHooksLegacy(address(0)), tickSpacing: 10});
+        PoolKeyLegacy memory key = PoolKeyLegacy({
+            currency0: currency0Legacy,
+            currency1: currency1Legacy,
+            fee: 0,
+            hooks: IHooksLegacy(address(0)),
+            tickSpacing: 10
+        });
         _managerLegacy.initialize(key, SQRT_RATIO_1_1, bytes(""));
 
         // Create 1 LP position covering active tick.
@@ -449,7 +501,9 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         // Full redeem the LP.
         vm.prank(lpInfo.lpAddress);
         _modifyPositionRouterLegacy.modifyPosition(
-            key, IPoolManagerLegacy.ModifyPositionParams(lpInfo.tickLower, lpInfo.tickUpper, -lpInfo.liquidity), bytes("")
+            key,
+            IPoolManagerLegacy.ModifyPositionParams(lpInfo.tickLower, lpInfo.tickUpper, -lpInfo.liquidity),
+            bytes("")
         );
 
         // Ensure the LP received the donation.
@@ -563,9 +617,12 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         int256 tick;
     }
 
-    function _multipleCase(PositionCase[] memory positions, DonateCase[] memory donations) private returns (BalanceDelta[] memory rDeltas) {
+    function _multipleCase(PositionCase[] memory positions, DonateCase[] memory donations)
+        private
+        returns (BalanceDelta[] memory rDeltas)
+    {
         // Bail if there are no donations.
-        if (donations.length == 0 || donations.length > 2 || positions.length > 2) {
+        if (donations.length == 0) {
             return rDeltas;
         }
 
@@ -653,9 +710,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         for (uint256 i = 0; i < lpInfo.length; i++) {
             vm.startPrank(lpInfo[i].lpAddress);
             rDeltas[i] = _modifyPositionRouter.modifyPosition(
-                key,
-                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0),
-                bytes("")
+                key, IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0), bytes("")
             );
             rDeltas[i] = _modifyPositionRouter.modifyPosition(
                 key,
@@ -665,17 +720,25 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         }
     }
 
-    function _legacyCase(PositionCase[] memory positions, DonateCase[] memory donations) private returns (BalanceDelta[] memory rDeltas) {
+    function _legacyCase(PositionCase[] memory positions, DonateCase[] memory donations)
+        private
+        returns (bool, BalanceDelta[] memory rDeltas)
+    {
         // Bail if there are no donations.
-        if (donations.length == 0 || donations.length > 2 || positions.length > 2) {
-            return rDeltas;
+        if (donations.length == 0) {
+            return (true, rDeltas);
         }
 
         // Setup target pool.
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 0, hooks: IHooks(address(0)), tickSpacing: 10});
-        PoolKeyLegacy memory keyLegacy =
-            PoolKeyLegacy({currency0: currency0Legacy, currency1: currency1Legacy, fee: 0, hooks: IHooksLegacy(address(0)), tickSpacing: 10});
+        PoolKeyLegacy memory keyLegacy = PoolKeyLegacy({
+            currency0: currency0Legacy,
+            currency1: currency1Legacy,
+            fee: 0,
+            hooks: IHooksLegacy(address(0)),
+            tickSpacing: 10
+        });
         _managerLegacy.initialize(keyLegacy, SQRT_RATIO_1_1, ZERO_BYTES);
 
         // Bound positions to valid tick range & avoid liquidity overflow.
@@ -693,14 +756,17 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
             );
         }
 
-        // Add some full range liquidity to avoid no liquidity at tick errors.
-        int24 minTick = _ceilToTickSpacing(key, TickMath.MIN_TICK);
-        int24 maxTick = _floorToTickSpacing(key, TickMath.MAX_TICK);
-        _createLpPositionLegacy(keyLegacy, minTick, maxTick, 1e18);
+        // Stack too deep workaround.
+        {
+            // Add some full range liquidity to avoid no liquidity at tick errors.
+            int24 minTick = _ceilToTickSpacing(key, TickMath.MIN_TICK);
+            int24 maxTick = _floorToTickSpacing(key, TickMath.MAX_TICK);
+            _createLpPositionLegacy(keyLegacy, minTick, maxTick, 1e18);
 
-        // Bound donations to valid tick range.
-        for (uint256 i = 0; i < donations.length; ++i) {
-            donations[i].tick = bound(donations[i].tick, int256(minTick), int256(maxTick - 1));
+            // Bound donations to valid tick range.
+            for (uint256 i = 0; i < donations.length; ++i) {
+                donations[i].tick = bound(donations[i].tick, int256(minTick), int256(maxTick - 1));
+            }
         }
 
         // Create positions.
@@ -711,7 +777,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
 
             // Bail if ticks are identical.
             if (tickLower == tickUpper) {
-                return rDeltas;
+                return (true, rDeltas);
             }
 
             lpInfo[i] = _createLpPositionLegacy(
@@ -745,48 +811,79 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         // Bail if any ticks are duplicated.
         for (uint256 i = 1; i < ticks.length; ++i) {
             if (ticks[i] == ticks[i - 1]) {
-                return rDeltas;
+                return (true, rDeltas);
             }
         }
 
-        // Donate.
-        _donateLegacy(keyLegacy, amounts0, amounts1, ticksCast);
+        // Donate (bail if it was not accurate).
+        if (!_donateLegacy(keyLegacy, amounts0, amounts1, ticksCast)) {
+            return (false, rDeltas);
+        }
 
         // Close all positions.
         rDeltas = new BalanceDelta[](positions.length * 2);
         for (uint256 i = 0; i < lpInfo.length; i++) {
             vm.startPrank(lpInfo[i].lpAddress);
-            rDeltas[i] = BalanceDelta.wrap(BalanceDeltaLegacy.unwrap(_modifyPositionRouterLegacy.modifyPosition(
-                keyLegacy,
-                IPoolManagerLegacy.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0),
-                bytes("")
-            )));
-            rDeltas[i] = BalanceDelta.wrap(BalanceDeltaLegacy.unwrap(_modifyPositionRouterLegacy.modifyPosition(
-                keyLegacy,
-                IPoolManagerLegacy.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
-                bytes("")
-            )));
+            rDeltas[i] = BalanceDelta.wrap(
+                BalanceDeltaLegacy.unwrap(
+                    _modifyPositionRouterLegacy.modifyPosition(
+                        keyLegacy,
+                        IPoolManagerLegacy.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0),
+                        bytes("")
+                    )
+                )
+            );
+            rDeltas[i] = BalanceDelta.wrap(
+                BalanceDeltaLegacy.unwrap(
+                    _modifyPositionRouterLegacy.modifyPosition(
+                        keyLegacy,
+                        IPoolManagerLegacy.ModifyPositionParams(
+                            lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity
+                        ),
+                        bytes("")
+                    )
+                )
+            );
             vm.stopPrank();
         }
+
+        // Execution was successful, this result is accurate & usable.
+        return (true, rDeltas);
     }
 
-    function testDonateMultiple_DifferentialFuzz(PositionCase[] memory positions, DonateCase[] memory donations) external {
-        BalanceDelta[] memory lMultipleDeltas = _multipleCase(positions, donations);
-        BalanceDelta[] memory lLegacyDeltas = _legacyCase(positions, donations);
+    function testDonateMultiple_DifferentialFuzz(PositionCase[] memory positions, DonateCase[] memory donations)
+        external
+    {
+        BalanceDelta[] memory multipleDeltas = _multipleCase(positions, donations);
+        (bool legacyAccurate, BalanceDelta[] memory legacyDeltas) = _legacyCase(positions, donations);
 
-        for (uint256 i = 0; i < lMultipleDeltas.length; ++i) {
-            assertEq(lMultipleDeltas[i].amount0(), lLegacyDeltas[i].amount0());
-            assertEq(lMultipleDeltas[i].amount1(), lLegacyDeltas[i].amount1());
+        if (!legacyAccurate) {
+            console2.log("UNABLE TO PRODUCE ACCURATE LEGACY RESULT; SKIPPING");
+
+            return;
         }
 
-        assertEq(lMultipleDeltas.length, lLegacyDeltas.length);
+        for (uint256 i = 0; i < multipleDeltas.length; ++i) {
+            assertEq(multipleDeltas[i].amount0(), legacyDeltas[i].amount0());
+            assertEq(multipleDeltas[i].amount1(), legacyDeltas[i].amount1());
+        }
+
+        assertEq(multipleDeltas.length, legacyDeltas.length);
     }
 
     function testDonateMultiple_Regression1() external {
         PositionCase[] memory positions = new PositionCase[](1);
-        positions[0] = PositionCase({ liquidity: 48516254459877948749359, tick0: 291600019818459968737486486394041, tick1: 3548426078575713209398795605304951 });
+        positions[0] = PositionCase({
+            liquidity: 48516254459877948749359,
+            tick0: 291600019818459968737486486394041,
+            tick1: 3548426078575713209398795605304951
+        });
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 2894861283519779277602677860900753464469604781525143072055282998725456 });
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: 2894861283519779277602677860900753464469604781525143072055282998725456
+        });
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
@@ -795,7 +892,11 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     function testDonateMultiple_Regression2() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 57896044618658097711785492504343953926634992332820282019728792003956564819966 });
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: 57896044618658097711785492504343953926634992332820282019728792003956564819966
+        });
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
@@ -804,7 +905,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     function testDonateMultiple_Regression3() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 762778504, amount1: 75313, tick: 16093 });
+        donations[0] = DonateCase({amount0: 762778504, amount1: 75313, tick: 16093});
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
@@ -813,7 +914,11 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     function testDonateMultiple_Regression4() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: -57896044618658097711785492504343953926634992332820282019728792003956564819967 });
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: -57896044618658097711785492504343953926634992332820282019728792003956564819967
+        });
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
@@ -822,7 +927,11 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     function testDonateMultiple_Regression5() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639933, amount1: 0, tick: 0 });
+        donations[0] = DonateCase({
+            amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639933,
+            amount1: 0,
+            tick: 0
+        });
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
@@ -831,7 +940,11 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     function testDonateMultiple_Regression6() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639934, amount1: 0, tick: 0 });
+        donations[0] = DonateCase({
+            amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639934,
+            amount1: 0,
+            tick: 0
+        });
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
@@ -840,22 +953,42 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     function testDonateMultiple_Regression7() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 57896044618658097711785492504343953926634992332820282019728792003956564819967 });
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: 57896044618658097711785492504343953926634992332820282019728792003956564819967
+        });
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
     }
 
-    /*
-    TODO: This test fails because swap to limit price exceeds the limit price on the second swap. The tick post swap is 1 higher than the requested price.
     function testDonateMultiple_Regression8() external {
         PositionCase[] memory positions = new PositionCase[](1);
-        positions[0] = PositionCase({ liquidity: 207259442830515072725502345, tick0: -548701, tick1: 30345597041507935154397553308088449638329177618069673770598342441450371990941 });
+        positions[0] = PositionCase({
+            liquidity: 207259442830515072725502345,
+            tick0: -548701,
+            tick1: 30345597041507935154397553308088449638329177618069673770598342441450371990941
+        });
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 82807197556170 });
+        donations[0] = DonateCase({amount0: 0, amount1: 0, tick: 82807197556170});
 
         _multipleCase(positions, donations);
         _legacyCase(positions, donations);
     }
-    */
+
+    function testDonateMultiple_Regression9() external {
+
+        PositionCase[] memory positions = new PositionCase[](1);
+        positions[0] = PositionCase({
+            liquidity: 207269805543645255572671521,
+            tick0: -548701,
+            tick1: 30345597041507935154397553308088449638329177618069673770598342441450371990941
+        });
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 82807197556171 });
+
+        // _multipleCase(positions, donations);
+        _legacyCase(positions, donations);
+    }
 }

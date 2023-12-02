@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import {console2} from "forge-std/console2.sol";
-
 import {SafeCast} from "./SafeCast.sol";
 import {TickBitmap} from "./TickBitmap.sol";
 import {Position} from "./Position.sol";
@@ -250,8 +248,6 @@ library Pool {
             }
         }
 
-        console2.log("P0");
-
         if (params.liquidityDelta != 0) {
             if (self.slot0.tick < params.tickLower) {
                 // current tick is below the passed range; liquidity can only become in range by crossing from left to
@@ -294,8 +290,6 @@ library Pool {
             }
         }
 
-        console2.log("P1");
-
         if (params.liquidityDelta < 0 && getWithdrawFee(self.slot0.hookFees) > 0) {
             // Only take fees if the hook withdraw fee is set and the liquidity is being removed.
             fees = _calculateExternalFees(self, result);
@@ -310,16 +304,8 @@ library Pool {
                 );
         }
 
-        console2.log("P2");
-        console2.log(feesOwed0);
-        console2.log(feesOwed1);
-
         int128 feesOwedInt0 = feesOwed0.toInt128();
         int128 feesOwedInt1 = feesOwed1.toInt128();
-        console2.logInt(feesOwedInt0);
-        console2.logInt(feesOwedInt1);
-        console2.logInt(result.amount0());
-        console2.logInt(result.amount1());
 
         // Fees earned from LPing are removed from the pool balance.
         result = result - toBalanceDelta(feesOwedInt0, feesOwedInt1);

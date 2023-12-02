@@ -1858,9 +1858,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         for (uint256 i = 0; i < lpInfo.length; i++) {
             vm.startPrank(lpInfo[i].lpAddress);
             modifyPositionRouter.modifyPosition(
-                key,
-                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0),
-                ZERO_BYTES
+                key, IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0), ZERO_BYTES
             );
             modifyPositionRouter.modifyPosition(
                 key,
@@ -1883,7 +1881,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     function testDonateMany_Regression1() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 762778504, amount1: 75313, tick: 16093 });
+        donations[0] = DonateCase({amount0: 762778504, amount1: 75313, tick: 16093});
 
         _testDonateCase(positions, donations);
     }
@@ -1891,7 +1889,11 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     function testDonateMany_Regression2() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: -57896044618658097711785492504343953926634992332820282019728792003956564819967 });
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: -57896044618658097711785492504343953926634992332820282019728792003956564819967
+        });
 
         _testDonateCase(positions, donations);
     }
@@ -1899,7 +1901,11 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     function testDonateMany_Regression3() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639933, amount1: 0, tick: 0 });
+        donations[0] = DonateCase({
+            amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639933,
+            amount1: 0,
+            tick: 0
+        });
 
         _testDonateCase(positions, donations);
     }
@@ -1907,7 +1913,11 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     function testDonateMany_Regression4() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639934, amount1: 0, tick: 0 });
+        donations[0] = DonateCase({
+            amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639934,
+            amount1: 0,
+            tick: 0
+        });
 
         _testDonateCase(positions, donations);
     }
@@ -1915,7 +1925,11 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     function testDonateMany_Regression5() external {
         PositionCase[] memory positions = new PositionCase[](0);
         DonateCase[] memory donations = new DonateCase[](1);
-        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 57896044618658097711785492504343953926634992332820282019728792003956564819967 });
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: 57896044618658097711785492504343953926634992332820282019728792003956564819967
+        });
 
         _testDonateCase(positions, donations);
     }
