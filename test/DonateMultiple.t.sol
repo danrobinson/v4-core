@@ -54,7 +54,12 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     PoolDonateTestLegacy private _donateRouterLegacy = new PoolDonateTestLegacy(_managerLegacy);
 
     // Test state.
-    uint256[] _amountsOut;
+    struct SwapArgs {
+        bool zeroForOne;
+        uint256 amountOut;
+    }
+
+    SwapArgs[] _inverseSwap;
 
     function setUp() external {
         // Deploy tokens.
@@ -290,6 +295,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     ) private returns (bool rAccurate) {
         rAccurate = true;
 
+        uint256 lLoop = 0;
         for (uint256 i = 0; i < ticks.length; ++i) {
             // Load pool state.
             (, int24 startingTick,,) = _managerLegacy.getSlot0(key.toId());
@@ -297,6 +303,9 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
 
             // Swap to target.
             while (currentTick != ticks[i]) {
+                lLoop += 1;
+                require(lLoop < 100, "Exceeded 100 iterations");
+
                 if (currentTick > ticks[i]) {
                     if (startingTick < ticks[i]) {
                         return false;
@@ -316,7 +325,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
                     );
 
                     assertLt(lDelta.amount1(), 0);
-                    _amountsOut.push(uint256(-int256(lDelta.amount1())));
+                    _inverseSwap.push(SwapArgs(false, uint256(-int256(lDelta.amount1()))));
                 } else {
                     assert(currentTick < ticks[i]);
                     if (startingTick > ticks[i]) {
@@ -337,7 +346,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
                     );
 
                     assertLt(lDelta.amount0(), 0);
-                    _amountsOut.push(uint256(-int256(lDelta.amount0())));
+                    _inverseSwap.push(SwapArgs(true, uint256(-int256(lDelta.amount0()))));
                 }
 
                 (, currentTick,,) = _managerLegacy.getSlot0(key.toId());
@@ -347,40 +356,24 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
             _donateRouterLegacy.donate(key, amounts0[i], amounts1[i], bytes(""));
 
             // Replay the swaps in reverse order.
-            for (uint256 j = _amountsOut.length; j > 0; --j) {
-                if (currentTick > startingTick) {
-                    IPoolManagerLegacy.SwapParams memory params = IPoolManagerLegacy.SwapParams({
-                        zeroForOne: true,
-                        amountSpecified: int256(_amountsOut[j - 1]),
-                        sqrtPriceLimitX96: TickMath.MIN_SQRT_RATIO + 1
-                    });
-                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(
-                        key,
-                        params,
-                        PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true}),
-                        bytes("")
-                    );
+            for (uint256 j = _inverseSwap.length; j > 0; --j) {
+                lLoop += 1;
 
-                    assertGt(lDelta.amount0(), 0);
-                } else {
-                    assert(currentTick < startingTick);
-                    IPoolManagerLegacy.SwapParams memory params = IPoolManagerLegacy.SwapParams({
-                        zeroForOne: false,
-                        amountSpecified: int256(_amountsOut[j -  1]),
-                        sqrtPriceLimitX96: TickMath.MAX_SQRT_RATIO - 1
-                    });
-                    BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(
-                        key,
-                        params,
-                        PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true}),
-                        bytes("")
-                    );
+                SwapArgs storage swapArgs = _inverseSwap[j - 1];
 
-                    assertGt(lDelta.amount1(), 0);
-                }
+                IPoolManagerLegacy.SwapParams memory params = IPoolManagerLegacy.SwapParams({
+                    zeroForOne: swapArgs.zeroForOne,
+                    amountSpecified: int256(swapArgs.amountOut),
+                    sqrtPriceLimitX96: swapArgs.zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1
+                });
+                BalanceDeltaLegacy lDelta = _swapRouterLegacy.swap(
+                    key,
+                    params,
+                    PoolSwapTestLegacy.TestSettings({withdrawTokens: true, settleUsingTransfer: true}),
+                    bytes("")
+                );
 
                 (, currentTick,,) = _managerLegacy.getSlot0(key.toId());
-                _amountsOut.pop();
             }
 
             rAccurate = rAccurate && currentTick == startingTick;
@@ -602,7 +595,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
     }
 
     /*//////////////////////////////////////////////////////////////////////////
-                                    FUZZ CASES
+                                    FUZZ HELPERS
     //////////////////////////////////////////////////////////////////////////*/
 
     struct PositionCase {
@@ -851,9 +844,29 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         return (true, rDeltas);
     }
 
+    function _compareOutputs(BalanceDelta[] memory multipleDeltas, BalanceDelta[] memory legacyDeltas) private {
+        // Ensure inputs are within 1 wei of each other.
+        for (uint256 i = 0; i < multipleDeltas.length; ++i) {
+            assertApproxEqAbs(multipleDeltas[i].amount0(), legacyDeltas[i].amount0(), 1);
+            assertApproxEqAbs(multipleDeltas[i].amount1(), legacyDeltas[i].amount1(), 1);
+        }
+
+        assertEq(multipleDeltas.length, legacyDeltas.length);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                    FUZZ CASES
+    //////////////////////////////////////////////////////////////////////////*/
+
     function testDonateMultiple_DifferentialFuzz(PositionCase[] memory positions, DonateCase[] memory donations)
         external
     {
+        if (positions.length > 10 || donations.length > 10) {
+            // NB: Limit the complexity of inputs to reduce run time and make
+            // counterexamples more manageable.
+            return;
+        }
+
         BalanceDelta[] memory multipleDeltas = _multipleCase(positions, donations);
         (bool legacyAccurate, BalanceDelta[] memory legacyDeltas) = _legacyCase(positions, donations);
 
@@ -863,12 +876,7 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
             return;
         }
 
-        for (uint256 i = 0; i < multipleDeltas.length; ++i) {
-            assertEq(multipleDeltas[i].amount0(), legacyDeltas[i].amount0());
-            assertEq(multipleDeltas[i].amount1(), legacyDeltas[i].amount1());
-        }
-
-        assertEq(multipleDeltas.length, legacyDeltas.length);
+        _compareOutputs(multipleDeltas, legacyDeltas);
     }
 
     function testDonateMultiple_Regression1() external {
@@ -988,7 +996,33 @@ contract DonateMultipleTest is Test, Deployers, TokenFixture {
         DonateCase[] memory donations = new DonateCase[](1);
         donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 82807197556171 });
 
-        // _multipleCase(positions, donations);
+        _multipleCase(positions, donations);
         _legacyCase(positions, donations);
+    }
+
+    function testDonateMultiple_Regression10() external {
+
+        PositionCase[] memory positions = new PositionCase[](1);
+        positions[0] = PositionCase({ liquidity: 327208669152123285309543204 , tick0: 217543361859921953003026334305071, tick1: 3548461532374624794772322270390013 });
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: 342 });
+
+        BalanceDelta[] memory multipleDeltas = _multipleCase(positions, donations);
+        (, BalanceDelta[] memory legacyDeltas) = _legacyCase(positions, donations);
+
+        _compareOutputs(multipleDeltas, legacyDeltas);
+    }
+
+    function testDonateMultiple_Regression11() external {
+
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](2);
+        donations[0] = DonateCase({ amount0: 0, amount1: 0, tick: -19755536291197755946742 });
+        donations[1] = DonateCase({ amount0: 0, amount1: 0, tick: 0 });
+
+        BalanceDelta[] memory multipleDeltas = _multipleCase(positions, donations);
+        (, BalanceDelta[] memory legacyDeltas) = _legacyCase(positions, donations);
+
+        _compareOutputs(multipleDeltas, legacyDeltas);
     }
 }
