@@ -58,8 +58,15 @@ library Pool {
     /// @notice Thrown by donate if there is currently 0 liquidity, since the fees will not go to any liquidity providers
     error NoLiquidityToReceiveFees();
 
-    /// @notice Thrown by donate if the list of ticks is not ordered in ascending order
-    error TickListMisordered();
+    /// @notice Thrown by donate if the tick list length is invalid
+    /// @dev An invalid tick list length is either:
+    ///      - Empty.
+    ///      - Has duplicate ticks.
+    ///      - Has an unbalanced number of ticks, amount0, or amount1 entries.
+    error InvalidTicksListLength();
+
+    /// @notice Thrown by donate if the tick list is not sorted in ascending order.
+    error InvalidTicksListOrder();
 
     /// Each uint24 variable packs both the swap fees and the withdraw fees represented as integer denominators (1/x). The upper 12 bits are the swap fees, and the lower 12 bits
     /// are the withdraw fees. For swap fees, the upper 6 bits are the fee for trading 1 for 0, and the lower 6 are for 0 for 1 and are taken as a percentage of the lp swap fee.
@@ -297,8 +304,11 @@ library Pool {
                 );
         }
 
+        int128 feesOwedInt0 = feesOwed0.toInt128();
+        int128 feesOwedInt1 = feesOwed1.toInt128();
+
         // Fees earned from LPing are removed from the pool balance.
-        result = result - toBalanceDelta(feesOwed0.toInt128(), feesOwed1.toInt128());
+        result = result - toBalanceDelta(feesOwedInt0, feesOwedInt1);
     }
 
     function _calculateExternalFees(State storage self, BalanceDelta result)
@@ -596,14 +606,14 @@ library Pool {
     ) internal returns (BalanceDelta delta) {
         DonateState memory state;
 
-        if (ticks.length == 0) revert TickListMisordered();
-        if (ticks.length != amount0.length || ticks.length != amount1.length) revert TickListMisordered();
+        if (ticks.length == 0) revert InvalidTicksListLength();
+        if (ticks.length != amount0.length || ticks.length != amount1.length) revert InvalidTicksListLength();
 
         // compute the liquidity that would be in range at (just right of) the leftmost tick by walking down to it
         state.liquidityAtTick = self.liquidity;
         state.tickCurrent = self.slot0.tick;
 
-        if (ticks[0] < TickMath.MIN_TICK) revert TickListMisordered();
+        if (ticks[0] < TickMath.MIN_TICK) revert TickLowerOutOfBounds(ticks[0]);
 
         (state.tickNext, state.initialized) =
             self.tickBitmap.nextInitializedTickWithinOneWord(state.tickCurrent, tickSpacing, true);
@@ -629,6 +639,7 @@ library Pool {
         // it will also distribute fees to the current tick, if that one is specified
 
         // the index of the ticks array that we're currently on
+        uint256 donatedBelow = 0;
         uint256 i = 0;
 
         // skip the step that updates the tick on the first run through this loop
@@ -667,7 +678,7 @@ library Pool {
 
             // check if we crossed any of the ticks that we are distributing fees to
             while (i < ticks.length && ticks[i] < state.tickNext && ticks[i] <= state.tickCurrent) {
-                if (i + 1 < ticks.length && ticks[i] >= ticks[i + 1]) revert TickListMisordered();
+                if (i + 1 < ticks.length && ticks[i] >= ticks[i + 1]) revert InvalidTicksListOrder();
                 if (state.liquidityAtTick == 0) revert NoLiquidityToReceiveFees();
                 state.cumulativeAmount0 += amount0[i];
                 state.cumulativeAmount1 += amount1[i];
@@ -675,6 +686,8 @@ library Pool {
                     FullMath.mulDiv(amount0[i], FixedPoint128.Q128, state.liquidityAtTick);
                 state.cumulativeFeeGrowthBelow1x128 +=
                     FullMath.mulDiv(amount1[i], FixedPoint128.Q128, state.liquidityAtTick);
+
+                donatedBelow++;
                 i++;
             }
         }
@@ -685,7 +698,7 @@ library Pool {
         state.liquidityAtTick = self.liquidity;
         state.tickCurrent = self.slot0.tick;
 
-        if (ticks[ticks.length - 1] > TickMath.MAX_TICK) revert TickListMisordered();
+        if (ticks[ticks.length - 1] > TickMath.MAX_TICK) revert TickUpperOutOfBounds(ticks[ticks.length - 1]);
 
         (state.tickNext, state.initialized) =
             self.tickBitmap.nextInitializedTickWithinOneWord(state.tickCurrent, tickSpacing, false);
@@ -707,6 +720,7 @@ library Pool {
 
         // walk back over initialized ticks to the current tick
         // the index of the ticks array that we're currently on
+        uint256 donatedAbove = 0;
         i = ticks.length - 1;
 
         // tickNext is currently the tick above the highest tick in the list
@@ -747,7 +761,7 @@ library Pool {
 
             // check if we crossed any of the ticks that we are distributing fees to
             while (!exhausted && ticks[i] >= state.tickNext && ticks[i] > state.tickCurrent) {
-                if (i >= 1 && ticks[i - 1] >= ticks[i]) revert TickListMisordered();
+                if (i >= 1 && ticks[i - 1] >= ticks[i]) revert InvalidTicksListOrder();
                 if (state.liquidityAtTick == 0) revert NoLiquidityToReceiveFees();
                 state.cumulativeAmount0 += amount0[i];
                 state.cumulativeAmount1 += amount1[i];
@@ -756,12 +770,17 @@ library Pool {
                 state.cumulativeFeeGrowthAbove1x128 +=
                     FullMath.mulDiv(amount1[i], FixedPoint128.Q128, state.liquidityAtTick);
 
+                donatedAbove++;
                 if (i > 0) i--;
                 else exhausted = true;
             }
         }
 
-        // TODO: fail if array was not contiguous
+        // If we did not process an equal number of donations, than the tick
+        // list was improperly ordered.
+        if (donatedBelow + donatedAbove != ticks.length) {
+            revert InvalidTicksListOrder();
+        }
 
         // update the global feeGrowthGlobal values
         delta = toBalanceDelta(state.cumulativeAmount0.toInt128(), state.cumulativeAmount1.toInt128());

@@ -6,8 +6,8 @@ import {Currency} from "../../src/types/Currency.sol";
 import {SortTokens} from "./SortTokens.sol";
 
 contract TokenFixture {
-    Currency internal currency1;
     Currency internal currency0;
+    Currency internal currency1;
 
     function initializeTokens() internal {
         MockERC20 tokenA = new MockERC20("TestA", "A", 18);

@@ -47,30 +47,30 @@ contract PoolModifyPositionTest is ILockCallback {
 
         if (delta.amount0() > 0) {
             if (data.key.currency0.isNative()) {
-                manager.settle{value: uint128(delta.amount0())}(data.key.currency0);
+                manager.settle{value: uint256(int256(delta.amount0()))}(data.key.currency0);
             } else {
                 IERC20Minimal(Currency.unwrap(data.key.currency0)).transferFrom(
-                    data.sender, address(manager), uint128(delta.amount0())
+                    data.sender, address(manager), uint256(int256(delta.amount0()))
                 );
                 manager.settle(data.key.currency0);
             }
         }
         if (delta.amount1() > 0) {
             if (data.key.currency1.isNative()) {
-                manager.settle{value: uint128(delta.amount1())}(data.key.currency1);
+                manager.settle{value: uint256(int256(delta.amount1()))}(data.key.currency1);
             } else {
                 IERC20Minimal(Currency.unwrap(data.key.currency1)).transferFrom(
-                    data.sender, address(manager), uint128(delta.amount1())
+                    data.sender, address(manager), uint256(int256(delta.amount1()))
                 );
                 manager.settle(data.key.currency1);
             }
         }
 
         if (delta.amount0() < 0) {
-            manager.take(data.key.currency0, data.sender, uint128(-delta.amount0()));
+            manager.take(data.key.currency0, data.sender, uint256(-int256(delta.amount0())));
         }
         if (delta.amount1() < 0) {
-            manager.take(data.key.currency1, data.sender, uint128(-delta.amount1()));
+            manager.take(data.key.currency1, data.sender, uint256(-int256(delta.amount1())));
         }
 
         return abi.encode(delta);

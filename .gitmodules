@@ -11,3 +11,9 @@
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 	tag = v4.4.2
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/Vectorized/solady
+[submodule "lib/v4-core-single-donate"]
+	path = lib/v4-core-single-donate
+	url = https://github.com/OliverNChalk/v4-core-single-donate

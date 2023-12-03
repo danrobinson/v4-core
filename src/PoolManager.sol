@@ -152,7 +152,7 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
         }
     }
 
-    function _accountDelta(Currency currency, int128 delta) internal {
+    function _accountDelta(Currency currency, int256 delta) internal {
         if (delta == 0) return;
 
         address locker = lockData.getActiveLock();
@@ -365,7 +365,7 @@ contract PoolManager is IPoolManager, Fees, NoDelegateCall, Claims {
 
     /// @inheritdoc IPoolManager
     function take(Currency currency, address to, uint256 amount) external override noDelegateCall onlyByLocker {
-        _accountDelta(currency, amount.toInt128());
+        _accountDelta(currency, int256(amount));
         reservesOf[currency] -= amount;
         currency.transfer(to, amount);
     }

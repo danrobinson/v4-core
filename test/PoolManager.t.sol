@@ -35,6 +35,7 @@ import {FeeLibrary} from "../src/libraries/FeeLibrary.sol";
 import {Position} from "../src/libraries/Position.sol";
 import {FullMath} from "../src/libraries/FullMath.sol";
 import {FixedPoint96} from "../src/libraries/FixedPoint96.sol";
+import {LibSort} from "solady/src/utils/LibSort.sol";
 
 contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     using Hooks for IHooks;
@@ -85,6 +86,8 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     address ALL_HOOKS = address(0xff00000000000000000000000000000000000001);
     address MOCK_HOOKS = address(0xfF00000000000000000000000000000000000000);
 
+    uint256 TEST_BALANCE = type(uint256).max / 3 * 2;
+
     function setUp() public {
         initializeTokens();
         manager = Deployers.createFreshManager();
@@ -97,20 +100,20 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         swapRouter = new PoolSwapTest(manager);
         protocolFeeController = new ProtocolFeeControllerTest();
 
-        MockERC20(Currency.unwrap(currency0)).mint(address(this), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).mint(address(this), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).mint(address(this), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).mint(address(this), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(swapRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(swapRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(swapRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(swapRouter), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(modifyPositionRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(modifyPositionRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(modifyPositionRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(modifyPositionRouter), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(donateRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(donateRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(donateRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(donateRouter), TEST_BALANCE);
 
-        MockERC20(Currency.unwrap(currency0)).approve(address(takeRouter), 10 ether);
-        MockERC20(Currency.unwrap(currency1)).approve(address(takeRouter), 10 ether);
+        MockERC20(Currency.unwrap(currency0)).approve(address(takeRouter), TEST_BALANCE);
+        MockERC20(Currency.unwrap(currency1)).approve(address(takeRouter), TEST_BALANCE);
     }
 
     function test_bytecodeSize() public {
@@ -1085,9 +1088,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo1.tickLower;
@@ -1134,9 +1137,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = -15;
@@ -1184,9 +1187,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = -25;
@@ -1239,9 +1242,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo2.tickLower;
@@ -1293,9 +1296,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo1.tickLower;
@@ -1355,9 +1358,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = lpInfo2.tickLower;
@@ -1409,9 +1412,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = 15;
@@ -1459,9 +1462,9 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
 
         // Donate 2 eth of each asset to the position in range at tick 10 (tickLower = 10).
         uint256 lDonateAmount = 2 ether;
-        uint256[] memory amounts0 = new uint[](1);
+        uint256[] memory amounts0 = new uint256[](1);
         amounts0[0] = lDonateAmount;
-        uint256[] memory amounts1 = new uint[](1);
+        uint256[] memory amounts1 = new uint256[](1);
         amounts1[0] = lDonateAmount;
         int24[] memory ticks = new int24[](1);
         ticks[0] = 25;
@@ -1502,22 +1505,66 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0, "Liquidity left over");
     }
 
-    function testDonateManyRangesBelowCurrentTick() public {
+    function testDonateManyRangesBelowCurrentTick_2Positions(uint256 donateAmount) public {
+        uint256 nPositions = 2;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
+
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
-
-        uint256 nPositions = 3;
-        uint256 donateAmount = 3 ether;
-
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
+        amounts0[0] = donateAmount;
+        amounts0[1] = donateAmount;
+
+        uint256[] memory amounts1 = new uint256[](nPositions);
+        amounts1[0] = donateAmount;
+        amounts1[1] = donateAmount;
+
+        int24[] memory ticks = new int24[](nPositions);
+        ticks[0] = lpInfo[1].tickLower;
+        ticks[1] = lpInfo[0].tickLower;
+
+        uint256 liquidityBalance0 = key.currency0.balanceOf(address(manager));
+        uint256 liquidityBalance1 = key.currency1.balanceOf(address(manager));
+
+        // Donate and make sure all balances were pulled.
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+        assertEq(key.currency0.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance0);
+        assertEq(key.currency1.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance1);
+
+        // Close all positions.
+        for (uint256 i = 0; i < lpInfo.length; i++) {
+            vm.prank(lpInfo[i].lpAddress);
+            modifyPositionRouter.modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
+                ZERO_BYTES
+            );
+        }
+
+        // Ensure the pool was emptied (some wei rounding imprecision may remain).
+        assertLt(key.currency0.balanceOf(address(manager)), 10);
+        assertLt(key.currency1.balanceOf(address(manager)), 10);
+        assertEq(manager.getLiquidity(key.toId()), 0);
+    }
+
+    function testDonateManyRangesBelowCurrentTick_3Positions(uint256 donateAmount) public {
+        uint256 nPositions = 3;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
+
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+        LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
+
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
         amounts0[2] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
         amounts1[2] = donateAmount;
@@ -1551,21 +1598,67 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
-    function testDonateManyRangesAboveCurrentTick() public {
+    function testDonateManyRangesAboveCurrentTick_2Positions(uint256 donateAmount) public {
+        uint256 nPositions = 2;
+        // NB: Withdrawing the position can overflow the BalanceDelta value.
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / uint256(3) - 1);
+
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
-
-        uint256 nPositions = 3;
-        uint256 donateAmount = 3 ether;
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
+        amounts0[0] = donateAmount;
+        amounts0[1] = donateAmount;
+
+        uint256[] memory amounts1 = new uint256[](nPositions);
+        amounts1[0] = donateAmount;
+        amounts1[1] = donateAmount;
+
+        int24[] memory ticks = new int24[](nPositions);
+        ticks[0] = lpInfo[0].tickUpper;
+        ticks[1] = lpInfo[1].tickUpper - 1;
+
+        uint256 liquidityBalance0 = key.currency0.balanceOf(address(manager));
+        uint256 liquidityBalance1 = key.currency1.balanceOf(address(manager));
+
+        // Donate and make sure all balances were pulled.
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+        assertEq(key.currency0.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance0);
+        assertEq(key.currency1.balanceOf(address(manager)), donateAmount * nPositions + liquidityBalance1);
+
+        // Close all positions.
+        for (uint256 i = 0; i < lpInfo.length; i++) {
+            vm.prank(lpInfo[i].lpAddress);
+            modifyPositionRouter.modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
+                ZERO_BYTES
+            );
+        }
+
+        // Ensure the pool was emptied (some wei rounding imprecision may remain).
+        assertLt(key.currency0.balanceOf(address(manager)), 10);
+        assertLt(key.currency1.balanceOf(address(manager)), 10);
+        assertEq(manager.getLiquidity(key.toId()), 0);
+    }
+
+    function testDonateManyRangesAboveCurrentTick_3Positions(uint256 donateAmount) public {
+        uint256 nPositions = 3;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
+
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+        LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
+
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
         amounts0[2] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
         amounts1[2] = donateAmount;
@@ -1599,21 +1692,22 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
-    function testDonateManyRangesBelowOnAndAboveCurrentTick() public {
+    function testDonateManyRangesBelowOnAndAboveCurrentTick(uint256 donateAmount) public {
+        uint256 nPositions = 3;
+        donateAmount = bound(donateAmount, 0, 2 ** 127 / nPositions - 1);
+
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
         manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
 
-        uint256 nPositions = 3;
-        uint256 donateAmount = 3 ether;
         LpInfo[] memory lpInfo = _createLpPositionsSymmetric(key, nPositions);
 
-        uint256[] memory amounts0 = new uint[](nPositions);
+        uint256[] memory amounts0 = new uint256[](nPositions);
         amounts0[0] = donateAmount;
         amounts0[1] = donateAmount;
         amounts0[2] = donateAmount;
 
-        uint256[] memory amounts1 = new uint[](nPositions);
+        uint256[] memory amounts1 = new uint256[](nPositions);
         amounts1[0] = donateAmount;
         amounts1[1] = donateAmount;
         amounts1[2] = donateAmount;
@@ -1647,6 +1741,427 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         assertEq(manager.getLiquidity(key.toId()), 0);
     }
 
+    struct PositionCase {
+        uint128 liquidity;
+        int256 tick0;
+        int256 tick1;
+    }
+
+    struct DonateCase {
+        uint256 amount0;
+        uint256 amount1;
+        int256 tick;
+    }
+
+    function _testDonateCase(PositionCase[] memory positions, DonateCase[] memory donations) private {
+        // Bail if there are no donations.
+        if (donations.length == 0) {
+            return;
+        }
+
+        // Setup target pool.
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Bound positions to valid tick range & avoid liquidity overflow.
+        for (uint256 i = 0; i < positions.length; ++i) {
+            positions[i].liquidity = uint128(bound(positions[i].liquidity, 1, 2 ** 100));
+            positions[i].tick0 = bound(
+                positions[i].tick0,
+                int256(TickMath.MIN_TICK + key.tickSpacing),
+                int256(TickMath.MAX_TICK - key.tickSpacing)
+            );
+            positions[i].tick1 = bound(
+                positions[i].tick1,
+                int256(TickMath.MIN_TICK + key.tickSpacing),
+                int256(TickMath.MAX_TICK - key.tickSpacing)
+            );
+        }
+
+        // Add some full range liquidity to avoid no liquidity at tick errors.
+        int24 minTick = _ceilToTickSpacing(key, TickMath.MIN_TICK);
+        console2.logInt(minTick);
+        int24 maxTick = _floorToTickSpacing(key, TickMath.MAX_TICK);
+        console2.logInt(maxTick);
+        _createLpPosition(key, minTick, maxTick, 1e18);
+
+        // Bound donations to valid tick range.
+        for (uint256 i = 0; i < donations.length; ++i) {
+            donations[i].tick = bound(donations[i].tick, int256(minTick), int256(maxTick - 1));
+        }
+
+        // Create positions.
+        LpInfo[] memory lpInfo = new LpInfo[](positions.length);
+        for (uint256 i = 0; i < positions.length; ++i) {
+            int24 tickLower = _min(int24(positions[i].tick0), int24(positions[i].tick1));
+            int24 tickUpper = _max(int24(positions[i].tick0), int24(positions[i].tick1));
+
+            // Bail if ticks are identical.
+            if (tickLower == tickUpper) {
+                return;
+            }
+
+            lpInfo[i] = _createLpPosition(
+                key,
+                _floorToTickSpacing(key, tickLower),
+                _ceilToTickSpacing(key, tickUpper),
+                int256(uint256(positions[i].liquidity))
+            );
+        }
+
+        // Convert donations cases to donation arguments.
+        uint256 amount0Sum;
+        uint256 amount1Sum;
+        uint256[] memory amounts0 = new uint256[](donations.length);
+        uint256[] memory amounts1 = new uint256[](donations.length);
+        int256[] memory ticks = new int256[](donations.length);
+        for (uint256 i = 0; i < donations.length; ++i) {
+            uint256 amount0 = bound(donations[i].amount0, 0, 2 ** 127 / donations.length);
+            uint256 amount1 = bound(donations[i].amount1, 0, 2 ** 127 / donations.length);
+
+            amount0Sum += amount0;
+            amount1Sum += amount1;
+            amounts0[i] = amount0;
+            amounts1[i] = amount1;
+            ticks[i] = donations[i].tick;
+        }
+
+        // TODO: This dislocates the fuzzers arguments and effects, does this degrade the quality?
+        LibSort.sort(ticks);
+        int24[] memory ticksCast;
+        assembly {
+            ticksCast := ticks
+        }
+
+        // Bail if any ticks are duplicated.
+        for (uint256 i = 0; i < ticks.length; ++i) {
+            console2.log("TICK:");
+            console2.logInt(ticks[i]);
+        }
+        for (uint256 i = 1; i < ticks.length; ++i) {
+            if (ticks[i] == ticks[i - 1]) {
+                return;
+            }
+        }
+
+        // Donate and make sure all balances were pulled.
+        uint256 liquidityBalance0 = key.currency0.balanceOf(address(manager));
+        uint256 liquidityBalance1 = key.currency1.balanceOf(address(manager));
+        donateRouter.donateRange(key, amounts0, amounts1, ticksCast);
+        assertEq(key.currency0.balanceOf(address(manager)), amount0Sum + liquidityBalance0);
+        assertEq(key.currency1.balanceOf(address(manager)), amount1Sum + liquidityBalance1);
+
+        // Close all positions.
+        modifyPositionRouter.modifyPosition(key, IPoolManager.ModifyPositionParams(minTick, maxTick, 0), ZERO_BYTES);
+        modifyPositionRouter.modifyPosition(key, IPoolManager.ModifyPositionParams(minTick, maxTick, -1e18), ZERO_BYTES);
+        for (uint256 i = 0; i < lpInfo.length; i++) {
+            vm.startPrank(lpInfo[i].lpAddress);
+            modifyPositionRouter.modifyPosition(
+                key, IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, 0), ZERO_BYTES
+            );
+            modifyPositionRouter.modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(lpInfo[i].tickLower, lpInfo[i].tickUpper, -lpInfo[i].liquidity),
+                ZERO_BYTES
+            );
+            vm.stopPrank();
+        }
+
+        // Ensure the pool was emptied (some wei rounding imprecision may remain).
+        assertLe(key.currency0.balanceOf(address(manager)), 2 * positions.length + 2);
+        assertLe(key.currency1.balanceOf(address(manager)), 2 * positions.length + 2);
+        assertEq(manager.getLiquidity(key.toId()), 0);
+    }
+
+    function testDonateMany_Fuzz(PositionCase[] memory positions, DonateCase[] memory donations) external {
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression1() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({amount0: 762778504, amount1: 75313, tick: 16093});
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression2() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: -57896044618658097711785492504343953926634992332820282019728792003956564819967
+        });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression3() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({
+            amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639933,
+            amount1: 0,
+            tick: 0
+        });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression4() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({
+            amount0: 115792089237316195423570985008687907853269984665640564039456584007913129639934,
+            amount1: 0,
+            tick: 0
+        });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_Regression5() external {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({
+            amount0: 0,
+            amount1: 0,
+            tick: 57896044618658097711785492504343953926634992332820282019728792003956564819967
+        });
+
+        _testDonateCase(positions, donations);
+    }
+
+    function testDonateMany_MinTick() public {
+        PositionCase[] memory positions = new PositionCase[](0);
+        DonateCase[] memory donations = new DonateCase[](1);
+        donations[0] = DonateCase({amount0: 1e18, amount1: 1e18, tick: -887270});
+
+        _testDonateCase(positions, donations);
+    }
+
+    // TODO: Donating to MAX_TICK is invalid because that does not belong to the max position.
+    // function testDonateMany_MaxTick() public {
+    //     PositionCase[] memory positions = new PositionCase[](0);
+    //     DonateCase[] memory donations = new DonateCase[](1);
+    //     donations[0] = DonateCase({amount0: 1e18, amount1: 1e18, tick: 887270});
+
+    //     _testDonateCase(positions, donations);
+    // }
+
+    function testDonateRevert_TickListEmpty() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
+        donateRouter.donateRange(key, new uint256[](0), new uint256[](0), new int24[](0));
+    }
+
+    function testDonateRevert_TickListImbalancedAmounts0() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
+        donateRouter.donateRange(key, new uint256[](2), new uint256[](1), new int24[](1));
+    }
+
+    function testDonateRevert_TickListImbalancedAmounts1() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
+        donateRouter.donateRange(key, new uint256[](1), new uint256[](2), new int24[](1));
+    }
+
+    function testDonateRevert_TickListImbalancedTicks() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        vm.expectRevert(Pool.InvalidTicksListLength.selector);
+        donateRouter.donateRange(key, new uint256[](1), new uint256[](1), new int24[](2));
+    }
+
+    function testDonateRevert_TickListTooLow() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = TickMath.MIN_TICK - 1;
+
+        vm.expectRevert(abi.encodePacked(Pool.TickLowerOutOfBounds.selector, int256(TickMath.MIN_TICK - 1)));
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_TickListTooHigh() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = TickMath.MAX_TICK + 1;
+
+        vm.expectRevert(abi.encodePacked(Pool.TickUpperOutOfBounds.selector, int256(TickMath.MAX_TICK + 1)));
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonate_HasLiquidity() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = 0;
+
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_NoLiquidityBelow() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, -10, 0, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = -20;
+
+        vm.expectRevert(Pool.NoLiquidityToReceiveFees.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_NoLiquidityAbove() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 10.
+        _createLpPosition(key, 0, 10, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](1);
+        amounts0[0] = 1e18;
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts1[0] = 1e18;
+        int24[] memory ticks = new int24[](1);
+        ticks[0] = 20;
+
+        vm.expectRevert(Pool.NoLiquidityToReceiveFees.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_MisorderdListAbove1() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 40.
+        _createLpPosition(key, 0, 40, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](2);
+        amounts0[0] = 1e18;
+        amounts0[1] = 1e18;
+        uint256[] memory amounts1 = new uint256[](2);
+        amounts1[0] = 1e18;
+        amounts1[1] = 1e18;
+        int24[] memory ticks = new int24[](2);
+        ticks[0] = 20;
+        ticks[1] = 10;
+
+        vm.expectRevert(Pool.InvalidTicksListOrder.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_MisorderdListAbove2() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 40.
+        _createLpPosition(key, 0, 40, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](2);
+        amounts0[0] = 1e18;
+        amounts0[1] = 1e18;
+        uint256[] memory amounts1 = new uint256[](2);
+        amounts1[0] = 1e18;
+        amounts1[1] = 1e18;
+        int24[] memory ticks = new int24[](2);
+        ticks[0] = 20;
+        ticks[1] = 0; // Equal to current tick is considered below.
+
+        vm.expectRevert(Pool.InvalidTicksListOrder.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
+    function testDonateRevert_MisorderdListDual() external {
+        PoolKey memory key =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 100, hooks: IHooks(address(0)), tickSpacing: 10});
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+
+        // Create an LP position with tickLower 0 and tickUpper 40.
+        _createLpPosition(key, -40, 40, 1e18);
+
+        uint256[] memory amounts0 = new uint256[](3);
+        amounts0[0] = 1e18;
+        amounts0[1] = 1e18;
+        amounts0[2] = 1e18;
+        uint256[] memory amounts1 = new uint256[](3);
+        amounts1[0] = 1e18;
+        amounts1[1] = 1e18;
+        amounts1[2] = 1e18;
+        int24[] memory ticks = new int24[](3);
+        ticks[0] = 20;
+        ticks[1] = 0;
+        ticks[2] = -20;
+
+        vm.expectRevert(Pool.InvalidTicksListOrder.selector);
+        donateRouter.donateRange(key, amounts0, amounts1, ticks);
+    }
+
     function test_take_failsWithNoLiquidity() public {
         PoolKey memory key =
             PoolKey({currency0: currency0, currency1: currency1, fee: 3000, hooks: IHooks(address(0)), tickSpacing: 60});
@@ -1656,7 +2171,7 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
     }
 
     function test_take_failsWithInvalidTokensThatDoNotReturnTrueOnTransfer() public {
-        TestInvalidERC20 invalidToken = new TestInvalidERC20(2**255);
+        TestInvalidERC20 invalidToken = new TestInvalidERC20(2 ** 255);
         Currency invalidCurrency = Currency.wrap(address(invalidToken));
         bool currency0Invalid = invalidCurrency < currency0;
         PoolKey memory key = PoolKey({
@@ -1950,6 +2465,38 @@ contract PoolManagerTest is Test, Deployers, TokenFixture, GasSnapshot {
         Position.Info memory managerPosition = manager.getPosition(key.toId(), address(modifyPositionRouter), -120, 120);
 
         assertEq(managerPosition.liquidity, 5 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                    DONATION HELPERS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    function _min(int24 a, int24 b) private pure returns (int24) {
+        if (a < b) {
+            return a;
+        } else {
+            return b;
+        }
+    }
+
+    function _max(int24 a, int24 b) private pure returns (int24) {
+        if (a > b) {
+            return a;
+        } else {
+            return b;
+        }
+    }
+
+    function _floorToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
+        return tick > 0 ? _truncateToTickSpacing(key, tick) : _truncateToTickSpacing(key, tick - key.tickSpacing + 1);
+    }
+
+    function _ceilToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
+        return tick > 0 ? _truncateToTickSpacing(key, tick + key.tickSpacing - 1) : _truncateToTickSpacing(key, tick);
+    }
+
+    function _truncateToTickSpacing(PoolKey memory key, int24 tick) private pure returns (int24) {
+        return tick / key.tickSpacing * key.tickSpacing;
     }
 
     struct LpInfo {
